@@ -26,10 +26,6 @@
                 <button type="submit">Platformaga kirish</button>
                 <p class="form-message" id="loginMessage" aria-live="polite"></p>
             </form>
-            <div class="demo-access">
-                <span>Superadmin:</span>
-                <b>Ideal school / idealbeshariq</b>
-            </div>
         </div>
     </section>
 
@@ -45,16 +41,12 @@
 
             <nav class="main-nav" aria-label="Platforma bo'limlari">
                 <a class="active" href="#dashboard">Dashboard</a>
-                <a href="#payments">To'lovlar</a>
-                <a href="#zauch">Zauch</a>
-                <a href="#students">O'quvchilar</a>
+                <a href="#zauch">O'qituvchilar oyligi</a>
+                <a href="#staff">Tex xodimlar</a>
+                <a href="#buses">Avtobus xizmati</a>
                 <a href="#teachers">O'qituvchilar</a>
-                <a href="#salaries">Oyliklar</a>
-                <a href="#tutors">Repetitor KPI</a>
-                <a href="#founders">Ta'sischilar</a>
-                <a href="#roles">Rollar</a>
-                <a href="#finance">Moliya</a>
-                <a href="#services">Xizmatlar</a>
+                <a href="#monthlyPayments">Oylik to'lovlar</a>
+                <a href="#expenses">Rasxodlar</a>
             </nav>
 
             <div class="sidebar-panel is-collapsed" id="sidebarPanel">
@@ -163,7 +155,7 @@
                 <article class="panel zauch-view app-view" id="zauch" data-view="zauch">
                     <div class="panel-head">
                         <div>
-                            <p class="eyebrow">Zauch roli</p>
+                            <p class="eyebrow">O'qituvchilar oyligi</p>
                             <h2>O'qituvchi oylik hisobotlari</h2>
                         </div>
                         <span class="status-pill green">Tahrirlash mumkin</span>
@@ -182,13 +174,34 @@
                             <input id="salaryReportDays" type="number" min="0" placeholder="0" required>
                         </label>
                         <label>
-                            Dars soati
+                            Dars soni
+                            <input id="salaryReportLessons" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            Ishlagan soati
                             <input id="salaryReportHours" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            1 soat stavkasi
+                            <input id="salaryReportRate" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            Sertifikat to'lovi
+                            <input id="salaryReportCertificate" type="number" min="0" placeholder="0">
+                        </label>
+                        <label>
+                            Qo'shimcha to'lov
+                            <input id="salaryReportExtra" type="number" min="0" placeholder="0">
+                        </label>
+                        <label>
+                            Avans
+                            <input id="salaryReportAdvance" type="number" min="0" placeholder="0">
                         </label>
                         <label>
                             Hisobot izohi
                             <input id="salaryReportNote" type="text" placeholder="Masalan: May oyi dars va navbatchilik hisobotlari">
                         </label>
+                        <div class="founder-summary form-summary" id="salaryReportSummary"></div>
                         <button type="submit">Hisobotni topshirish</button>
                         <p class="form-message" id="salaryReportMessage" aria-live="polite"></p>
                     </form>
@@ -224,6 +237,24 @@
                     <button type="submit">O'qituvchi qo'shish</button>
                     <p class="form-message" id="teacherMessage" aria-live="polite"></p>
                 </form>
+                <div class="record-list stacked-list" id="teacherSalarySlipList"></div>
+                <div class="table-wrap compact-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>O'qituvchi</th>
+                                <th>Oy</th>
+                                <th>Kun</th>
+                                <th>Dars</th>
+                                <th>Soat</th>
+                                <th>Hisoblangan</th>
+                                <th>Avans</th>
+                                <th>Olishi kerak</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teacherSalaryTable"></tbody>
+                    </table>
+                </div>
                 <div class="table-wrap compact-table">
                     <table>
                         <thead>
@@ -360,7 +391,6 @@
                             <option value="admin">Admin</option>
                             <option value="superadmin">Superadmin</option>
                             <option value="accountant">Bugalter</option>
-                            <option value="staff">Tex xodim</option>
                         </select>
                     </label>
                     <label>
@@ -387,11 +417,11 @@
             </section>
 
             <section class="section-row finance-view view-group group-hidden">
-                <article class="panel animated-panel app-view" id="finance" data-view="finance">
+                <article class="panel animated-panel app-view" id="monthlyPayments" data-view="monthlyPayments">
                     <div class="panel-head">
                         <div>
                             <p class="eyebrow">Moliya</p>
-                            <h2>Daromad va rasxodlar</h2>
+                            <h2>Oylik to'lovlar</h2>
                         </div>
                     </div>
                     <div class="founder-summary" id="financeTodaySummary"></div>
@@ -411,7 +441,7 @@
                         <button type="submit">Summalarni saqlash</button>
                         <p class="form-message" id="feeSettingsMessage" aria-live="polite"></p>
                     </form>
-                    <form id="paymentForm">
+                    <form id="paymentForm" class="wide-form">
                         <label>
                             Oy
                             <input id="paymentMonth" type="month" required>
@@ -442,6 +472,7 @@
                             To'lov usuli
                             <select id="paymentMethod">
                                 <option value="Naqd pul">Naqd pul</option>
+                                <option value="Click">Click</option>
                                 <option value="Hisob raqam">Hisob raqam</option>
                             </select>
                         </label>
@@ -461,37 +492,6 @@
                         <button type="button" class="secondary" id="dormitoryPaymentButton">Yotoqxona to'lovi</button>
                         <button type="submit">To'lovni saqlash</button>
                         <p class="form-message" id="paymentMessage" aria-live="polite"></p>
-                    </form>
-                    <form id="financeForm">
-                        <label>
-                            Rasxod turi
-                            <select id="expenseType">
-                                <option value="Oylik">Oylik</option>
-                                <option value="Ijara">Ijara</option>
-                                <option value="Kommunal">Kommunal</option>
-                                <option value="Oziq-ovqat">Oziq-ovqat</option>
-                                <option value="Transport">Transport</option>
-                                <option value="Ta'mirlash">Ta'mirlash</option>
-                                <option value="Boshqa">Boshqa</option>
-                            </select>
-                        </label>
-                        <label>
-                            To'lov usuli
-                            <select id="expenseMethod">
-                                <option value="Naqd pul">Naqd pul</option>
-                                <option value="Hisob raqam">Hisob raqam</option>
-                            </select>
-                        </label>
-                        <label>
-                            Izoh
-                            <input id="financeTitle" type="text" placeholder="Masalan: Kommunal to'lov" required>
-                        </label>
-                        <label>
-                            Summa
-                            <input id="financeAmount" type="number" min="0" placeholder="0" required>
-                        </label>
-                        <button type="submit">Rasxodni saqlash</button>
-                        <p class="form-message" id="expenseMessage" aria-live="polite"></p>
                     </form>
                     <label>
                         Sinf filter
@@ -513,6 +513,47 @@
                             <tbody id="financePaymentsTable"></tbody>
                         </table>
                     </div>
+                </article>
+
+                <article class="panel animated-panel app-view" id="expenses" data-view="expenses">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Moliya</p>
+                            <h2>Rasxodlar</h2>
+                        </div>
+                    </div>
+                    <form id="financeForm" class="wide-form">
+                        <label>
+                            Rasxod turi
+                            <select id="expenseType">
+                                <option value="Oylik">Oylik</option>
+                                <option value="Ijara">Ijara</option>
+                                <option value="Kommunal">Kommunal</option>
+                                <option value="Oziq-ovqat">Oziq-ovqat</option>
+                                <option value="Transport">Transport</option>
+                                <option value="Ta'mirlash">Ta'mirlash</option>
+                                <option value="Boshqa">Boshqa</option>
+                            </select>
+                        </label>
+                        <label>
+                            To'lov usuli
+                            <select id="expenseMethod">
+                                <option value="Naqd pul">Naqd pul</option>
+                                <option value="Click">Click</option>
+                                <option value="Hisob raqam">Hisob raqam</option>
+                            </select>
+                        </label>
+                        <label>
+                            Izoh
+                            <input id="financeTitle" type="text" placeholder="Masalan: Kommunal to'lov" required>
+                        </label>
+                        <label>
+                            Summa
+                            <input id="financeAmount" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <button type="submit">Rasxodni saqlash</button>
+                        <p class="form-message" id="expenseMessage" aria-live="polite"></p>
+                    </form>
                     <div class="record-list" id="financeList"></div>
                 </article>
 
@@ -540,26 +581,57 @@
             </section>
 
             <section class="section-row view-group group-hidden">
-                <article class="panel app-view" id="services" data-view="services">
+                <article class="panel app-view" id="staff" data-view="staff">
                     <div class="panel-head">
                         <div>
                             <p class="eyebrow">Maktab xizmati</p>
-                            <h2>Tex xodimlar va avtobuslar</h2>
+                            <h2>Tex xodimlar</h2>
                         </div>
                     </div>
-                    <form id="serviceForm">
+                    <form id="staffSalaryForm" class="wide-form">
                         <label>
-                            Xizmat turi
-                            <select id="serviceType">
-                                <option value="Tex xodim">Tex xodim</option>
-                                <option value="Avtobus">Avtobus</option>
-                            </select>
+                            Tex xodim F.I.Sh
+                            <input id="staffName" type="text" placeholder="Masalan: Anvar Aliyev" required>
                         </label>
                         <label>
-                            Ma'lumot
+                            Lavozimi / ishi
+                            <input id="staffJob" type="text" placeholder="Masalan: qorovul" required>
+                        </label>
+                        <label>
+                            Oy
+                            <input id="staffMonth" type="month" required>
+                        </label>
+                        <label>
+                            Oylik
+                            <input id="staffSalary" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            Berilgan avans
+                            <input id="staffAdvance" type="number" min="0" placeholder="0">
+                        </label>
+                        <button type="submit">Tex xodim qo'shish</button>
+                        <p class="form-message" id="staffSalaryMessage" aria-live="polite"></p>
+                    </form>
+                    <div class="record-list stacked-list" id="staffSalaryList"></div>
+                </article>
+
+                <article class="panel app-view" id="buses" data-view="buses">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Maktab xizmati</p>
+                            <h2>Avtobus xizmati</h2>
+                        </div>
+                    </div>
+                    <form id="serviceForm" class="wide-form">
+                        <label>
+                            Avtobus / haydovchi
                             <input id="serviceTitle" type="text" placeholder="Masalan: 1-avtobus Chilonzor yo'nalishi" required>
                         </label>
-                        <button type="submit">Xizmatni saqlash</button>
+                        <label>
+                            Izoh
+                            <input id="serviceNote" type="text" placeholder="Masalan: ertalab va kechki qatnov">
+                        </label>
+                        <button type="submit">Avtobus qo'shish</button>
                     </form>
                     <div class="record-list" id="serviceList"></div>
                 </article>

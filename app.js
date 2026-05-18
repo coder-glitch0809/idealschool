@@ -75,6 +75,7 @@ setValue("#paymentMonth", currentMonth);
 setValue("#salaryMonth", currentMonth);
 setValue("#tutorMonth", currentMonth);
 setValue("#salaryReportMonth", currentMonth);
+setValue("#staffMonth", currentMonth);
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
 initFirebaseBackend();
 loadStateFromServer();
@@ -175,13 +176,28 @@ document.querySelector("#salaryReportForm").addEventListener("submit", (event) =
     if (!can("salaryReports")) return;
 
     const teacher = state.users.find((user) => user.id === value("#salaryReportTeacher"));
+    const salary = salaryReportTotals({
+        lessonHours: numberValue("#salaryReportHours"),
+        hourlyRate: numberValue("#salaryReportRate"),
+        certificatePayment: numberValue("#salaryReportCertificate"),
+        extraPayment: numberValue("#salaryReportExtra"),
+        advance: numberValue("#salaryReportAdvance")
+    });
+
     state.salaryReports.push({
         id: createId("salaryReport"),
         month: value("#salaryReportMonth"),
         teacherId: teacher ? teacher.id : "",
         teacherName: teacher ? teacher.fullName : "",
         workedDays: numberValue("#salaryReportDays"),
+        lessonsCount: numberValue("#salaryReportLessons"),
         lessonHours: numberValue("#salaryReportHours"),
+        hourlyRate: numberValue("#salaryReportRate"),
+        certificatePayment: numberValue("#salaryReportCertificate"),
+        extraPayment: numberValue("#salaryReportExtra"),
+        advance: numberValue("#salaryReportAdvance"),
+        calculatedSalary: salary.total,
+        remainingSalary: salary.remaining,
         note: value("#salaryReportNote"),
         createdBy: currentUser.fullName
     });
@@ -323,12 +339,31 @@ document.querySelector("#serviceForm").addEventListener("submit", (event) => {
 
     state.services.push({
         id: createId("service"),
-        type: value("#serviceType"),
+        type: "Avtobus",
         title: value("#serviceTitle"),
+        note: value("#serviceNote"),
         createdBy: currentUser.fullName
     });
 
     saveAndRender(event.target);
+});
+
+document.querySelector("#staffSalaryForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!can("services")) return;
+
+    state.staffSalaries.push({
+        id: createId("staffSalary"),
+        name: value("#staffName"),
+        job: value("#staffJob"),
+        month: value("#staffMonth"),
+        salary: numberValue("#staffSalary"),
+        advance: numberValue("#staffAdvance"),
+        createdBy: currentUser.fullName
+    });
+
+    saveAndRender(event.target, "#staffSalaryMessage", "Tex xodim oyligi saqlandi.");
+    setValue("#staffMonth", currentMonth);
 });
 
 document.querySelector("#paymentClass").addEventListener("change", () => {
@@ -342,6 +377,13 @@ document.querySelector("#dormitoryPaymentButton").addEventListener("click", () =
     fillRequiredPayment();
 });
 document.querySelector("#financeClassFilter").addEventListener("change", renderFinancePaymentsTable);
+[
+    "#salaryReportHours",
+    "#salaryReportRate",
+    "#salaryReportCertificate",
+    "#salaryReportExtra",
+    "#salaryReportAdvance"
+].forEach((selector) => document.querySelector(selector).addEventListener("input", renderSalaryReportSummary));
 
 function renderApp() {
     const stats = calculateStats();
@@ -372,6 +414,8 @@ function renderApp() {
     renderPayments();
     renderStudents();
     renderSalaryReports();
+    renderSalaryReportSummary();
+    renderTeacherSalarySheets();
     renderTeacherFinance();
     renderUsers();
     renderSalaries();
@@ -380,6 +424,7 @@ function renderApp() {
     renderFinancePaymentsTable();
     renderFounders();
     renderServices();
+    renderStaffSalaries();
     renderFeeSettings();
     setActiveView(activeView);
 }
@@ -426,8 +471,9 @@ function applyPermissions() {
     toggleForm("#financeForm", can("finance"));
     toggleForm("#founderForm", can("founders"));
     toggleForm("#serviceForm", can("services"));
+    toggleForm("#staffSalaryForm", can("services"));
 
-    ["students", "payments", "zauch", "teachers", "roles", "salaries", "tutors", "finance", "founders", "services"].forEach((id) => {
+    ["students", "payments", "zauch", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses"].forEach((id) => {
         const element = document.querySelector(`#${id}`);
         if (element) element.classList.toggle("locked", !can(sectionPermission(id)));
     });
@@ -519,14 +565,33 @@ function renderSalaryReports() {
     const list = document.querySelector("#salaryReportList");
     list.innerHTML = "";
     getVisibleSalaryReports().slice().reverse().forEach((item) => {
+        const totals = salaryReportTotals(item);
         list.append(recordItem({
             title: `${item.teacherName} - ${item.month}`,
-            meta: `${item.workedDays || 0} kun | ${item.lessonHours || 0} dars soati`,
-            note: `${item.note || "Izoh kiritilmagan"} | Kiritdi: ${item.createdBy || "-"}`,
+            meta: `${item.workedDays || 0} kun | ${item.lessonsCount || 0} dars | ${item.lessonHours || 0} soat | Stavka: ${formatMoney(item.hourlyRate || 0)} so'm`,
+            note: `Dars: ${formatMoney(totals.lessonSalary)} | Sertifikat: ${formatMoney(item.certificatePayment || 0)} | Qo'shimcha: ${formatMoney(item.extraPayment || 0)} | Avans: ${formatMoney(item.advance || 0)} | Olishi kerak: ${formatMoney(totals.remaining)} so'm | ${item.note || "Izoh yo'q"}`,
             id: item.id,
             collection: "salaryReports"
         }));
     });
+}
+
+function renderSalaryReportSummary() {
+    const summary = document.querySelector("#salaryReportSummary");
+    if (!summary) return;
+
+    const totals = salaryReportTotals({
+        lessonHours: numberValue("#salaryReportHours"),
+        hourlyRate: numberValue("#salaryReportRate"),
+        certificatePayment: numberValue("#salaryReportCertificate"),
+        extraPayment: numberValue("#salaryReportExtra"),
+        advance: numberValue("#salaryReportAdvance")
+    });
+
+    summary.innerHTML = `
+        <strong>Hisoblangan oylik: ${formatMoney(totals.total)} so'm</strong>
+        <span>Dars puli: ${formatMoney(totals.lessonSalary)} | Sertifikat: ${formatMoney(totals.certificatePayment)} | Qo'shimcha: ${formatMoney(totals.extraPayment)} | Avansdan keyin: ${formatMoney(totals.remaining)}</span>
+    `;
 }
 
 function renderTeacherFinance() {
@@ -549,6 +614,49 @@ function renderTeacherFinance() {
             <td>${formatMoney(paid)} so'm</td>
             <td>${formatMoney(debt)} so'm</td>
             <td>${debtors ? `${debtors} qarzdor` : "Toza"}</td>
+        `;
+        table.append(row);
+    });
+}
+
+function renderTeacherSalarySheets() {
+    const slipList = document.querySelector("#teacherSalarySlipList");
+    const table = document.querySelector("#teacherSalaryTable");
+    if (!slipList || !table) return;
+
+    const visibleTeachers = teachers().filter((teacher) => currentUser.role !== "teacher" || teacher.id === currentUser.id);
+    slipList.innerHTML = "";
+    table.innerHTML = "";
+
+    visibleTeachers.forEach((teacher) => {
+        const report = latestSalaryReportForTeacher(teacher.id);
+        const totals = salaryReportTotals(report || {});
+        const title = report ? `${teacher.fullName} - ${report.month}` : `${teacher.fullName} - hisobot yo'q`;
+        const meta = report
+            ? `${report.workedDays || 0} kun | ${report.lessonsCount || 0} dars | ${report.lessonHours || 0} soat | Stavka: ${formatMoney(report.hourlyRate || 0)} so'm`
+            : `${teacher.assignedClass || "-"} sinf | Zauch hali oylik listogini to'ldirmagan`;
+        const note = report
+            ? `Dars puli: ${formatMoney(totals.lessonSalary)} | Sertifikat: ${formatMoney(report.certificatePayment || 0)} | Qo'shimcha: ${formatMoney(report.extraPayment || 0)} | Hisoblangan: ${formatMoney(totals.total)} | Olgan avans: ${formatMoney(report.advance || 0)} | Qolgan: ${formatMoney(totals.remaining)} so'm`
+            : "Buxgalteriya uchun hisob-kitob ko'rinishi zauch hisobot kiritgandan keyin chiqadi.";
+
+        slipList.append(recordItem({
+            title,
+            meta,
+            note,
+            id: report ? report.id : "",
+            collection: report ? "salaryReports" : "salarySheetReadOnly"
+        }));
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${escapeHtml(teacher.fullName)}</td>
+            <td>${escapeHtml(report ? report.month : "-")}</td>
+            <td>${report ? report.workedDays || 0 : "-"}</td>
+            <td>${report ? report.lessonsCount || 0 : "-"}</td>
+            <td>${report ? report.lessonHours || 0 : "-"}</td>
+            <td>${formatMoney(totals.total)} so'm</td>
+            <td>${formatMoney(report ? report.advance || 0 : 0)} so'm</td>
+            <td>${formatMoney(totals.remaining)} so'm</td>
         `;
         table.append(row);
     });
@@ -609,8 +717,8 @@ function renderFinance() {
     const today = todayFinanceStats();
 
     summary.innerHTML = `
-        <strong>Bugun: kirim ${formatMoney(today.income)} so'm</strong>
-        <span>Chiqim: ${formatMoney(today.expense)} so'm | Farq: ${formatMoney(today.income - today.expense)} so'm</span>
+        <strong>Bugun yig'ilgan: ${formatMoney(today.net)} so'm</strong>
+        <span>Kirim: ${formatMoney(today.income)} | Naqd: ${formatMoney(today.cash)} | Click: ${formatMoney(today.click)} | Hisob raqam: ${formatMoney(today.account)} | Chiqim: ${formatMoney(today.expense)} | Farq: ${formatMoney(today.net)}</span>
     `;
 
     list.innerHTML = "";
@@ -672,13 +780,34 @@ function renderFounders() {
 function renderServices() {
     const list = document.querySelector("#serviceList");
     list.innerHTML = "";
-    state.services.slice().reverse().forEach((item) => {
+    state.services
+        .filter((item) => item.type === "Avtobus")
+        .slice()
+        .reverse()
+        .forEach((item) => {
         list.append(recordItem({
-            title: item.type,
-            meta: item.title,
-            note: `Kiritdi: ${item.createdBy}`,
+            title: item.title,
+            meta: "Avtobus xizmati",
+            note: `${item.note || "Izoh yo'q"} | Kiritdi: ${item.createdBy}`,
             id: item.id,
             collection: "services"
+        }));
+    });
+}
+
+function renderStaffSalaries() {
+    const list = document.querySelector("#staffSalaryList");
+    if (!list) return;
+
+    list.innerHTML = "";
+    state.staffSalaries.slice().reverse().forEach((item) => {
+        const remaining = Math.max(Number(item.salary || 0) - Number(item.advance || 0), 0);
+        list.append(recordItem({
+            title: `${item.name} - ${item.month}`,
+            meta: `${item.job || "Tex xodim"} | Oylik: ${formatMoney(item.salary)} so'm | Avans: ${formatMoney(item.advance)} so'm`,
+            note: `Berilishi kerak: ${formatMoney(remaining)} so'm | Kiritdi: ${item.createdBy || "-"}`,
+            id: item.id,
+            collection: "staffSalaries"
         }));
     });
 }
@@ -729,8 +858,21 @@ function editRecord(collection, id) {
     if (collection === "salaryReports") {
         const days = prompt("Ishlagan kunni tahrirlang", item.workedDays || 0);
         if (days !== null) item.workedDays = Number(days || 0);
+        const lessons = prompt("Dars sonini tahrirlang", item.lessonsCount || 0);
+        if (lessons !== null) item.lessonsCount = Number(lessons || 0);
         const hours = prompt("Dars soatini tahrirlang", item.lessonHours || 0);
         if (hours !== null) item.lessonHours = Number(hours || 0);
+        const rate = prompt("1 soat stavkasini tahrirlang", item.hourlyRate || 0);
+        if (rate !== null) item.hourlyRate = Number(rate || 0);
+        const certificate = prompt("Sertifikat to'lovini tahrirlang", item.certificatePayment || 0);
+        if (certificate !== null) item.certificatePayment = Number(certificate || 0);
+        const extra = prompt("Qo'shimcha to'lovni tahrirlang", item.extraPayment || 0);
+        if (extra !== null) item.extraPayment = Number(extra || 0);
+        const advance = prompt("Avansni tahrirlang", item.advance || 0);
+        if (advance !== null) item.advance = Number(advance || 0);
+        const totals = salaryReportTotals(item);
+        item.calculatedSalary = totals.total;
+        item.remainingSalary = totals.remaining;
         const note = prompt("Hisobot izohini tahrirlang", item.note || "");
         if (note !== null) item.note = note.trim();
     }
@@ -754,6 +896,12 @@ function editRecord(collection, id) {
         const title = prompt("Ma'lumotni tahrirlang", item.title);
         if (title) item.title = title.trim();
     }
+    if (collection === "staffSalaries") {
+        const salary = prompt("Oylik summasini tahrirlang", item.salary || 0);
+        if (salary !== null) item.salary = Number(salary || 0);
+        const advance = prompt("Berilgan avansni tahrirlang", item.advance || 0);
+        if (advance !== null) item.advance = Number(advance || 0);
+    }
 
     saveState();
     renderApp();
@@ -771,10 +919,11 @@ function calculateStats() {
     const manualIncome = sum(state.finance.filter((item) => item.type !== "Rasxod"), "amount");
     const expenses = sum(state.finance.filter((item) => item.type === "Rasxod"), "amount");
     const regularSalary = state.salaries.reduce((total, item) => total + item.baseSalary + item.bonus, 0);
+    const staffSalaryCost = state.staffSalaries.reduce((total, item) => total + Number(item.salary || 0), 0);
     const tutorCost = state.tutors.reduce((total, item) => total + tutorSalary(item), 0);
     const debt = state.payments.reduce((total, item) => total + Math.max(item.requiredAmount - item.paidAmount, 0), 0);
     const income = incomeFromPayments + manualIncome;
-    const salaryCost = regularSalary + tutorCost;
+    const salaryCost = regularSalary + tutorCost + staffSalaryCost;
 
     return {
         income,
@@ -853,7 +1002,15 @@ function can(permission) {
 }
 
 function sectionPermission(id) {
-    const map = { zauch: "salaryReports", payments: "payments", teachers: "teachers" };
+    const map = {
+        zauch: "salaryReports",
+        payments: "payments",
+        monthlyPayments: "finance",
+        expenses: "finance",
+        staff: "services",
+        buses: "services",
+        teachers: currentUser?.role === "teacher" ? "students" : "teachers"
+    };
     return map[id] || id;
 }
 
@@ -867,7 +1024,9 @@ function canEditCollection(collection) {
         tutors: "tutors",
         finance: "finance",
         founders: "founders",
-        services: "services"
+        services: "services",
+        staffSalaries: "services",
+        salarySheetReadOnly: "never"
     };
     return can(map[collection]);
 }
@@ -997,13 +1156,23 @@ function normalizeState(base = {}) {
         users,
         students: Array.isArray(base.students) ? base.students.map((student) => ({ monthlyFee: 0, dormitory: false, dormitoryFee: 0, ...student })) : [],
         schedules: Array.isArray(base.schedules) ? base.schedules : [],
-        salaryReports: Array.isArray(base.salaryReports) ? base.salaryReports : [],
+        salaryReports: Array.isArray(base.salaryReports) ? base.salaryReports.map((report) => ({
+            lessonsCount: 0,
+            hourlyRate: 0,
+            certificatePayment: 0,
+            extraPayment: 0,
+            advance: 0,
+            calculatedSalary: 0,
+            remainingSalary: 0,
+            ...report
+        })) : [],
         payments: Array.isArray(base.payments) ? base.payments.map((payment) => ({ category: "O'qish to'lovi", method: "Naqd pul", dormitory: false, ...payment })) : [],
         salaries: Array.isArray(base.salaries) ? base.salaries : [],
         tutors: Array.isArray(base.tutors) ? base.tutors : [],
         founders: Array.isArray(base.founders) ? base.founders : [],
         finance: Array.isArray(base.finance) ? base.finance : [],
         services: Array.isArray(base.services) ? base.services : [],
+        staffSalaries: Array.isArray(base.staffSalaries) ? base.staffSalaries : [],
         settings: {
             smallClassFee: 0,
             bigClassFee: 0,
@@ -1079,10 +1248,19 @@ function todayFinanceStats() {
     const today = new Date().toISOString().slice(0, 10);
     const todayPayments = state.payments.filter((payment) => String(payment.createdAt || "").slice(0, 10) === today);
     const todayFinance = state.finance.filter((item) => String(item.createdAt || "").slice(0, 10) === today);
+    const cash = sum(todayPayments.filter((item) => item.method === "Naqd pul"), "paidAmount");
+    const click = sum(todayPayments.filter((item) => item.method === "Click" || item.method === "Click/Payme"), "paidAmount");
+    const account = sum(todayPayments.filter((item) => item.method === "Hisob raqam"), "paidAmount");
+    const expense = sum(todayFinance.filter((item) => item.type === "Rasxod"), "amount");
+    const income = sum(todayPayments, "paidAmount") + sum(todayFinance.filter((item) => item.type !== "Rasxod"), "amount");
 
     return {
-        income: sum(todayPayments, "paidAmount") + sum(todayFinance.filter((item) => item.type !== "Rasxod"), "amount"),
-        expense: sum(todayFinance.filter((item) => item.type === "Rasxod"), "amount")
+        income,
+        cash,
+        click,
+        account,
+        expense,
+        net: income - expense
     };
 }
 
@@ -1090,6 +1268,36 @@ function renderFeeSettings() {
     setValue("#smallClassFee", state.settings.smallClassFee || "");
     setValue("#bigClassFee", state.settings.bigClassFee || "");
     setValue("#defaultDormitoryFee", state.settings.dormitoryFee || "");
+}
+
+function salaryReportTotals(item = {}) {
+    const lessonHours = Number(item.lessonHours || 0);
+    const hourlyRate = Number(item.hourlyRate || 0);
+    const certificatePayment = Number(item.certificatePayment || 0);
+    const extraPayment = Number(item.extraPayment || 0);
+    const advance = Number(item.advance || 0);
+    const lessonSalary = lessonHours * hourlyRate;
+    const total = lessonSalary + certificatePayment + extraPayment;
+
+    return {
+        lessonSalary,
+        certificatePayment,
+        extraPayment,
+        advance,
+        total,
+        remaining: Math.max(total - advance, 0)
+    };
+}
+
+function latestSalaryReportForTeacher(teacherId) {
+    return state.salaryReports
+        .filter((report) => report.teacherId === teacherId)
+        .slice()
+        .sort((left, right) => {
+            const monthCompare = String(right.month || "").localeCompare(String(left.month || ""));
+            if (monthCompare) return monthCompare;
+            return state.salaryReports.indexOf(right) - state.salaryReports.indexOf(left);
+        })[0];
 }
 
 function flash(selector, text) {

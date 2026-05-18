@@ -7,12 +7,13 @@ Collections are stored as arrays inside the document for the current frontend ve
 - `users`: `fullName`, `login`, `password`, `role`, `assignedClass`
 - `students`: `name`, `className`, `phone`, `monthlyFee`, `dormitory`, `dormitoryFee`
 - `payments`: `month`, `className`, `studentId`, `studentName`, `category`, `method`, `requiredAmount`, `paidAmount`, `contactStatus`, `dormitory`
-- `salaryReports`: `month`, `teacherId`, `teacherName`, `workedDays`, `lessonHours`, `note`, `createdBy`
+- `salaryReports`: `month`, `teacherId`, `teacherName`, `workedDays`, `lessonsCount`, `lessonHours`, `hourlyRate`, `certificatePayment`, `extraPayment`, `advance`, `calculatedSalary`, `remainingSalary`, `note`, `createdBy`
 - `salaries`: `month`, `teacherId`, `teacherName`, `baseSalary`, `advance`, `bonus`
 - `tutors`: `month`, `teacherId`, `teacherName`, `studentsCount`, `hours`, `rate`, `bonus`
 - `founders`: `name`, `percent`
 - `finance`: `type`, `title`, `amount`, `createdBy`
-- `services`: `type`, `title`, `createdBy`
+- `services`: `type`, `title`, `note`, `createdBy`
+- `staffSalaries`: `name`, `job`, `month`, `salary`, `advance`, `createdBy`
 
 Roles:
 
