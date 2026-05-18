@@ -1,0 +1,24 @@
+# IDEAL SCHOOL Database Schema
+
+Firestore document: `platform/idealSchool`
+
+Collections are stored as arrays inside the document for the current frontend version:
+
+- `users`: `fullName`, `login`, `password`, `role`, `assignedClass`
+- `students`: `name`, `className`, `phone`, `monthlyFee`, `dormitory`, `dormitoryFee`
+- `payments`: `month`, `className`, `studentId`, `studentName`, `category`, `method`, `requiredAmount`, `paidAmount`, `contactStatus`, `dormitory`
+- `salaryReports`: `month`, `teacherId`, `teacherName`, `workedDays`, `lessonHours`, `note`, `createdBy`
+- `salaries`: `month`, `teacherId`, `teacherName`, `baseSalary`, `advance`, `bonus`
+- `tutors`: `month`, `teacherId`, `teacherName`, `studentsCount`, `hours`, `rate`, `bonus`
+- `founders`: `name`, `percent`
+- `finance`: `type`, `title`, `amount`, `createdBy`
+- `services`: `type`, `title`, `createdBy`
+
+Roles:
+
+- `superadmin`: all sections, including roles and teacher creation
+- `admin`: school management without role creation
+- `zauch`: salaryReports, students, payments, salaries, tutors
+- `accountant`: payments, finance, students, founders
+- `teacher`: own class students and payments
+- `staff`: services

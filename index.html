@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IDEAL SCHOOL Platforma</title>
+    <link rel="icon" type="image/jpeg" href="photo_2025-08-11_13-29-10.jpg">
+    <link rel="apple-touch-icon" href="photo_2025-08-11_13-29-10.jpg">
+    <link rel="stylesheet" href="Idealschool.css">
+</head>
+<body>
+    <section class="login-screen" id="loginScreen">
+        <div class="login-card">
+            <img src="photo_2025-08-11_13-29-10.jpg" alt="IDEAL school logotipi">
+            <p class="eyebrow">Xavfsiz kirish</p>
+            <h1>IDEAL SCHOOL platformasi</h1>
+            <form id="loginForm">
+                <label>
+                    Login
+                    <input id="loginUsername" type="text" autocomplete="username" placeholder="Login" required>
+                </label>
+                <label>
+                    Parol
+                    <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Parol" required>
+                </label>
+                <button type="submit">Platformaga kirish</button>
+                <p class="form-message" id="loginMessage" aria-live="polite"></p>
+            </form>
+            <div class="demo-access">
+                <span>Superadmin:</span>
+                <b>Ideal school / idealbeshariq</b>
+            </div>
+        </div>
+    </section>
+
+    <div class="platform is-hidden" id="platform">
+        <aside class="sidebar">
+            <a class="brand" href="#dashboard" aria-label="Ideal School dashboard">
+                <img src="photo_2025-08-11_13-29-10.jpg" alt="IDEAL school logotipi">
+                <span>
+                    <strong>IDEAL</strong>
+                    <small>school platforma</small>
+                </span>
+            </a>
+
+            <nav class="main-nav" aria-label="Platforma bo'limlari">
+                <a class="active" href="#dashboard">Dashboard</a>
+                <a href="#payments">To'lovlar</a>
+                <a href="#zauch">Zauch</a>
+                <a href="#students">O'quvchilar</a>
+                <a href="#teachers">O'qituvchilar</a>
+                <a href="#salaries">Oyliklar</a>
+                <a href="#tutors">Repetitor KPI</a>
+                <a href="#founders">Ta'sischilar</a>
+                <a href="#roles">Rollar</a>
+                <a href="#finance">Moliya</a>
+                <a href="#services">Xizmatlar</a>
+            </nav>
+
+            <div class="sidebar-panel is-collapsed" id="sidebarPanel">
+                <button class="sidebar-panel-toggle" type="button" id="sidebarPanelToggle" aria-expanded="false" aria-label="Foydalanuvchi ma'lumotini ochish">
+                    <span id="sidebarPanelIcon">⌃</span>
+                </button>
+                <div class="sidebar-panel-content">
+                    <span>Joriy foydalanuvchi</span>
+                    <strong id="sidebarRole">Role</strong>
+                    <p id="sidebarUser">Login orqali kirilmagan.</p>
+                </div>
+            </div>
+        </aside>
+
+        <main class="app-shell">
+            <section class="hero app-view is-active-view" id="dashboard" data-view="dashboard">
+                <div class="hero-copy">
+                    <img class="hero-logo" src="photo_2025-08-11_13-29-10.jpg" alt="IDEAL school logotipi">
+                    <p class="eyebrow">IDEAL SCHOOL boshqaruv paneli</p>
+                    <h1 id="welcomeTitle">Dashboard</h1>
+                    <p>To'lovlar, qarzdorlar, o'qituvchi oyligi, avans, repetitor KPI, rasxod va ta'sischilar ulushi bitta moliyaviy tizimda boshqariladi.</p>
+                </div>
+                <div class="hero-actions" aria-label="Tezkor amallar">
+                    <span class="role-chip" id="roleChip">Role</span>
+                    <button class="icon-button secondary" type="button" id="themeToggle" aria-label="Tungi rejimga o'tish">☾</button>
+                    <button class="secondary" type="button" id="logoutBtn">Chiqish</button>
+                </div>
+            </section>
+
+            <section class="metrics app-view is-active-view" data-view="dashboard" aria-label="Asosiy ko'rsatkichlar">
+                <article>
+                    <span>O'quvchilar</span>
+                    <strong id="studentCount">0</strong>
+                    <small>Kiritilgan real ma'lumotlar</small>
+                </article>
+                <article>
+                    <span>O'qituvchilar</span>
+                    <strong id="teacherCount">0</strong>
+                    <small>Rol orqali biriktiriladi</small>
+                </article>
+                <article>
+                    <span>Oylik tushum</span>
+                    <strong id="incomeCount">0</strong>
+                    <small>To'lovlar bo'yicha</small>
+                </article>
+                <article>
+                    <span>Qarzdorlik</span>
+                    <strong id="debtCount">0</strong>
+                    <small>Aloqaga chiqish kerak</small>
+                </article>
+            </section>
+
+            <section class="dashboard-grid finance-view app-view" id="payments" data-view="payments">
+                <article class="panel animated-panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Sinf rahbar nazorati</p>
+                            <h2>O'quvchilar to'lov holati</h2>
+                        </div>
+                        <span class="status-pill" id="assignedClassBadge">Sinf tanlanmagan</span>
+                    </div>
+                    <div class="record-list" id="paymentList"></div>
+                </article>
+            </section>
+
+            <section class="section-row view-group group-hidden">
+                <article class="panel app-view" id="students" data-view="students">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Real ma'lumot kiritish</p>
+                            <h2>O'quvchi qo'shish</h2>
+                        </div>
+                        <span class="status-pill blue">Admin / Zauch</span>
+                    </div>
+                    <form id="studentForm">
+                        <label>
+                            O'quvchi F.I.Sh
+                            <input id="studentName" type="text" placeholder="Masalan: Ali Valiyev" required>
+                        </label>
+                        <label>
+                            Sinf
+                            <input id="studentClass" type="text" placeholder="Masalan: 5-A" required>
+                        </label>
+                        <label>
+                            Ota-ona telefoni
+                            <input id="studentPhone" type="tel" placeholder="+998 90 123 45 67">
+                        </label>
+                        <label>
+                            Oylik to'lov
+                            <input id="studentFee" type="number" min="0" placeholder="Bo'sh qolsa sinf bo'yicha olinadi">
+                        </label>
+                        <label>
+                            Yotoqxona to'lovi
+                            <input id="studentDormFee" type="number" min="0" placeholder="Bo'sh qolsa umumiy summa olinadi">
+                        </label>
+                        <label class="check-row">
+                            <input id="studentDormitory" type="checkbox">
+                            <span>Yotoqxonada qoladi</span>
+                        </label>
+                        <button type="submit">O'quvchini saqlash</button>
+                        <p class="form-message" id="studentMessage" aria-live="polite"></p>
+                    </form>
+                    <div class="record-list stacked-list" id="studentList"></div>
+                </article>
+
+                <article class="panel zauch-view app-view" id="zauch" data-view="zauch">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Zauch roli</p>
+                            <h2>O'qituvchi oylik hisobotlari</h2>
+                        </div>
+                        <span class="status-pill green">Tahrirlash mumkin</span>
+                    </div>
+                    <form id="salaryReportForm">
+                        <label>
+                            Oy
+                            <input id="salaryReportMonth" type="month" required>
+                        </label>
+                        <label>
+                            O'qituvchi
+                            <select id="salaryReportTeacher" required></select>
+                        </label>
+                        <label>
+                            Ishlagan kun
+                            <input id="salaryReportDays" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            Dars soati
+                            <input id="salaryReportHours" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            Hisobot izohi
+                            <input id="salaryReportNote" type="text" placeholder="Masalan: May oyi dars va navbatchilik hisobotlari">
+                        </label>
+                        <button type="submit">Hisobotni topshirish</button>
+                        <p class="form-message" id="salaryReportMessage" aria-live="polite"></p>
+                    </form>
+                    <div class="record-list stacked-list" id="salaryReportList"></div>
+                </article>
+            </section>
+
+            <section class="panel app-view" id="teachers" data-view="teachers">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">O'qituvchilar</p>
+                        <h2>Ustozlar, sinflar va to'lov nazorati</h2>
+                    </div>
+                    <span class="status-pill blue">Sinf rahbarlar</span>
+                </div>
+                <form class="wide-form" id="teacherForm">
+                    <label>
+                        O'qituvchi F.I.Sh
+                        <input id="teacherFullName" type="text" required>
+                    </label>
+                    <label>
+                        Login
+                        <input id="teacherLogin" type="text" required>
+                    </label>
+                    <label>
+                        Parol
+                        <input id="teacherPassword" type="text" required>
+                    </label>
+                    <label>
+                        Biriktirilgan sinf
+                        <input id="teacherClass" type="text" placeholder="Masalan: 5-A" required>
+                    </label>
+                    <button type="submit">O'qituvchi qo'shish</button>
+                    <p class="form-message" id="teacherMessage" aria-live="polite"></p>
+                </form>
+                <div class="table-wrap compact-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>O'qituvchi</th>
+                                <th>Sinf</th>
+                                <th>O'quvchi</th>
+                                <th>To'langan</th>
+                                <th>Qolgan</th>
+                                <th>Aloqa</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teacherFinanceTable"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="dashboard-grid salary-view app-view" id="salaries" data-view="salaries">
+                <article class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Zauch kiritadi</p>
+                            <h2>O'qituvchi oyligi va avans</h2>
+                        </div>
+                    </div>
+                    <form id="salaryForm">
+                        <label>
+                            Oy
+                            <input id="salaryMonth" type="month" required>
+                        </label>
+                        <label>
+                            O'qituvchi
+                            <select id="salaryTeacher" required></select>
+                        </label>
+                        <label>
+                            Jami oylik
+                            <input id="salaryBase" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            Oldindan olgan pul
+                            <input id="salaryAdvance" type="number" min="0" placeholder="0">
+                        </label>
+                        <label>
+                            Bonus / KPI
+                            <input id="salaryBonus" type="number" min="0" placeholder="0">
+                        </label>
+                        <button type="submit">Oylikni saqlash</button>
+                    </form>
+                </article>
+                <article class="panel animated-panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Qoldiq nazorati</p>
+                            <h2>Oyliklar ro'yxati</h2>
+                        </div>
+                    </div>
+                    <div class="record-list" id="salaryList"></div>
+                </article>
+            </section>
+
+            <section class="dashboard-grid tutor-view app-view" id="tutors" data-view="tutors">
+                <article class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Repetitor tizimi</p>
+                            <h2>Soat, bola soni va KPI</h2>
+                        </div>
+                    </div>
+                    <form id="tutorForm">
+                        <label>
+                            Oy
+                            <input id="tutorMonth" type="month" required>
+                        </label>
+                        <label>
+                            Ustoz
+                            <select id="tutorTeacher" required></select>
+                        </label>
+                        <label>
+                            Bola soni
+                            <input id="tutorStudents" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            O'tgan soati
+                            <input id="tutorHours" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            Har bola/soat stavka
+                            <input id="tutorRate" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            KPI bonus
+                            <input id="tutorBonus" type="number" min="0" placeholder="0">
+                        </label>
+                        <button type="submit">Repetitor oyligini saqlash</button>
+                    </form>
+                </article>
+                <article class="panel animated-panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">KPI hisob</p>
+                            <h2>Repetitor oyliklari</h2>
+                        </div>
+                    </div>
+                    <div class="record-list" id="tutorList"></div>
+                </article>
+            </section>
+
+            <section class="panel app-view" id="roles" data-view="roles">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Login, parol va rol</p>
+                        <h2>Xodimlarni rolga biriktirish</h2>
+                    </div>
+                    <span class="status-pill blue">Admin</span>
+                </div>
+                <form class="wide-form" id="userForm">
+                    <label>
+                        F.I.Sh
+                        <input id="userFullName" type="text" required>
+                    </label>
+                    <label>
+                        Login
+                        <input id="userLogin" type="text" required>
+                    </label>
+                    <label>
+                        Parol
+                        <input id="userPassword" type="text" required>
+                    </label>
+                    <label>
+                        Rol
+                        <select id="userRole" required>
+                            <option value="teacher">O'qituvchi</option>
+                            <option value="zauch">Zauch</option>
+                            <option value="admin">Admin</option>
+                            <option value="superadmin">Superadmin</option>
+                            <option value="accountant">Bugalter</option>
+                            <option value="staff">Tex xodim</option>
+                        </select>
+                    </label>
+                    <label>
+                        Biriktirilgan sinf
+                        <input id="userClass" type="text" placeholder="O'qituvchi uchun: 5-A">
+                    </label>
+                    <button type="submit">Xodimni saqlash</button>
+                    <p class="form-message" id="userMessage" aria-live="polite"></p>
+                </form>
+                <div class="table-wrap compact-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>F.I.Sh</th>
+                                <th>Login</th>
+                                <th>Rol</th>
+                                <th>Sinf</th>
+                                <th>Amal</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTable"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="section-row finance-view view-group group-hidden">
+                <article class="panel animated-panel app-view" id="finance" data-view="finance">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Moliya</p>
+                            <h2>Daromad va rasxodlar</h2>
+                        </div>
+                    </div>
+                    <div class="founder-summary" id="financeTodaySummary"></div>
+                    <form id="feeSettingsForm" class="wide-form">
+                        <label>
+                            Kichik sinflar to'lovi
+                            <input id="smallClassFee" type="number" min="0" placeholder="Masalan: 1000000">
+                        </label>
+                        <label>
+                            Katta sinflar to'lovi
+                            <input id="bigClassFee" type="number" min="0" placeholder="Masalan: 1200000">
+                        </label>
+                        <label>
+                            Yotoqxona to'lovi
+                            <input id="defaultDormitoryFee" type="number" min="0" placeholder="Masalan: 600000">
+                        </label>
+                        <button type="submit">Summalarni saqlash</button>
+                        <p class="form-message" id="feeSettingsMessage" aria-live="polite"></p>
+                    </form>
+                    <form id="paymentForm">
+                        <label>
+                            Oy
+                            <input id="paymentMonth" type="month" required>
+                        </label>
+                        <label>
+                            Sinf
+                            <select id="paymentClass" required></select>
+                        </label>
+                        <label>
+                            O'quvchi
+                            <select id="paymentStudent" required></select>
+                        </label>
+                        <label>
+                            To'lashi kerak
+                            <input id="paymentRequired" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            To'lov turi
+                            <select id="paymentCategory">
+                                <option value="O'qish to'lovi">O'qish to'lovi</option>
+                                <option value="Yotoqxona">Yotoqxona</option>
+                                <option value="Repetitor">Repetitor</option>
+                                <option value="Transport">Transport</option>
+                                <option value="Boshqa">Boshqa</option>
+                            </select>
+                        </label>
+                        <label>
+                            To'lov usuli
+                            <select id="paymentMethod">
+                                <option value="Naqd pul">Naqd pul</option>
+                                <option value="Hisob raqam">Hisob raqam</option>
+                            </select>
+                        </label>
+                        <label>
+                            To'lagan summa
+                            <input id="paymentPaid" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <label>
+                            Aloqa holati
+                            <select id="paymentContact">
+                                <option value="Aloqa qilinmagan">Aloqa qilinmagan</option>
+                                <option value="Telefon qilindi">Telefon qilindi</option>
+                                <option value="Va'da berdi">Va'da berdi</option>
+                                <option value="Hal qilindi">Hal qilindi</option>
+                            </select>
+                        </label>
+                        <button type="button" class="secondary" id="dormitoryPaymentButton">Yotoqxona to'lovi</button>
+                        <button type="submit">To'lovni saqlash</button>
+                        <p class="form-message" id="paymentMessage" aria-live="polite"></p>
+                    </form>
+                    <form id="financeForm">
+                        <label>
+                            Rasxod turi
+                            <select id="expenseType">
+                                <option value="Oylik">Oylik</option>
+                                <option value="Ijara">Ijara</option>
+                                <option value="Kommunal">Kommunal</option>
+                                <option value="Oziq-ovqat">Oziq-ovqat</option>
+                                <option value="Transport">Transport</option>
+                                <option value="Ta'mirlash">Ta'mirlash</option>
+                                <option value="Boshqa">Boshqa</option>
+                            </select>
+                        </label>
+                        <label>
+                            To'lov usuli
+                            <select id="expenseMethod">
+                                <option value="Naqd pul">Naqd pul</option>
+                                <option value="Hisob raqam">Hisob raqam</option>
+                            </select>
+                        </label>
+                        <label>
+                            Izoh
+                            <input id="financeTitle" type="text" placeholder="Masalan: Kommunal to'lov" required>
+                        </label>
+                        <label>
+                            Summa
+                            <input id="financeAmount" type="number" min="0" placeholder="0" required>
+                        </label>
+                        <button type="submit">Rasxodni saqlash</button>
+                        <p class="form-message" id="expenseMessage" aria-live="polite"></p>
+                    </form>
+                    <label>
+                        Sinf filter
+                        <select id="financeClassFilter"></select>
+                    </label>
+                    <div class="table-wrap compact-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>O'quvchi</th>
+                                    <th>Sinf</th>
+                                    <th>Turi</th>
+                                    <th>Usuli</th>
+                                    <th>To'langan</th>
+                                    <th>Qolgan</th>
+                                    <th>Yotoqxona</th>
+                                </tr>
+                            </thead>
+                            <tbody id="financePaymentsTable"></tbody>
+                        </table>
+                    </div>
+                    <div class="record-list" id="financeList"></div>
+                </article>
+
+                <article class="panel animated-panel app-view" id="founders" data-view="founders">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Ta'sischilar</p>
+                            <h2>Sof foyda va ulush</h2>
+                        </div>
+                    </div>
+                    <form id="founderForm">
+                        <label>
+                            Ta'sischi F.I.Sh
+                            <input id="founderName" type="text" required>
+                        </label>
+                        <label>
+                            Ulush foizi
+                            <input id="founderPercent" type="number" min="0" max="100" placeholder="50" required>
+                        </label>
+                        <button type="submit">Ta'sischini saqlash</button>
+                    </form>
+                    <div class="founder-summary" id="founderSummary"></div>
+                    <div class="record-list" id="founderList"></div>
+                </article>
+            </section>
+
+            <section class="section-row view-group group-hidden">
+                <article class="panel app-view" id="services" data-view="services">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Maktab xizmati</p>
+                            <h2>Tex xodimlar va avtobuslar</h2>
+                        </div>
+                    </div>
+                    <form id="serviceForm">
+                        <label>
+                            Xizmat turi
+                            <select id="serviceType">
+                                <option value="Tex xodim">Tex xodim</option>
+                                <option value="Avtobus">Avtobus</option>
+                            </select>
+                        </label>
+                        <label>
+                            Ma'lumot
+                            <input id="serviceTitle" type="text" placeholder="Masalan: 1-avtobus Chilonzor yo'nalishi" required>
+                        </label>
+                        <button type="submit">Xizmatni saqlash</button>
+                    </form>
+                    <div class="record-list" id="serviceList"></div>
+                </article>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
