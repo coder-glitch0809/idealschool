@@ -170,36 +170,36 @@
                             <select id="salaryReportTeacher" required></select>
                         </label>
                         <label>
-                            Ishlagan kun
-                            <input id="salaryReportDays" type="number" min="0" placeholder="0" required>
+                            Fan
+                            <input id="salaryReportSubject" type="text" placeholder="Masalan: Matematika" required>
                         </label>
                         <label>
-                            Dars soni
-                            <input id="salaryReportLessons" type="number" min="0" placeholder="0" required>
+                            Oylik summa
+                            <input id="salaryReportSalary" type="number" min="0" placeholder="0" required>
                         </label>
                         <label>
-                            Ishlagan soati
-                            <input id="salaryReportHours" type="number" min="0" placeholder="0" required>
-                        </label>
-                        <label>
-                            1 soat stavkasi
-                            <input id="salaryReportRate" type="number" min="0" placeholder="0" required>
-                        </label>
-                        <label>
-                            Sertifikat to'lovi
-                            <input id="salaryReportCertificate" type="number" min="0" placeholder="0">
-                        </label>
-                        <label>
-                            Qo'shimcha to'lov
-                            <input id="salaryReportExtra" type="number" min="0" placeholder="0">
-                        </label>
-                        <label>
-                            Avans
+                            Berilgan avans
                             <input id="salaryReportAdvance" type="number" min="0" placeholder="0">
                         </label>
                         <label>
-                            Hisobot izohi
-                            <input id="salaryReportNote" type="text" placeholder="Masalan: May oyi dars va navbatchilik hisobotlari">
+                            Avans turi
+                            <select id="salaryReportAdvanceType">
+                                <option value="Naqd pul">Naqd pul</option>
+                                <option value="Bank karta">Bank karta</option>
+                                <option value="Click">Click</option>
+                            </select>
+                        </label>
+                        <label>
+                            Oylik tushadigan joy
+                            <select id="salaryReportPaymentTarget">
+                                <option value="Bank karta">Bank karta</option>
+                                <option value="Bank orqali">Bank orqali</option>
+                                <option value="Naqd pul">Naqd pul</option>
+                            </select>
+                        </label>
+                        <label>
+                            Bank karta raqami
+                            <input id="salaryReportCard" type="text" placeholder="Masalan: 8600 **** **** 1234">
                         </label>
                         <div class="founder-summary form-summary" id="salaryReportSummary"></div>
                         <button type="submit">Hisobotni topshirish</button>
@@ -231,24 +231,27 @@
                         <input id="teacherPassword" type="text" required>
                     </label>
                     <label>
+                        Fan
+                        <input id="teacherSubject" type="text" placeholder="Masalan: Matematika" required>
+                    </label>
+                    <label>
                         Biriktirilgan sinf
                         <input id="teacherClass" type="text" placeholder="Masalan: 5-A" required>
                     </label>
                     <button type="submit">O'qituvchi qo'shish</button>
                     <p class="form-message" id="teacherMessage" aria-live="polite"></p>
                 </form>
-                <div class="record-list stacked-list" id="teacherSalarySlipList"></div>
                 <div class="table-wrap compact-table">
                     <table>
                         <thead>
                             <tr>
                                 <th>O'qituvchi</th>
                                 <th>Oy</th>
-                                <th>Kun</th>
-                                <th>Dars</th>
-                                <th>Soat</th>
-                                <th>Hisoblangan</th>
-                                <th>Avans</th>
+                                <th>Fan</th>
+                                <th>Oylik</th>
+                                <th>Avans turi</th>
+                                <th>Berilgan avans</th>
+                                <th>Oylik tushishi</th>
                                 <th>Olishi kerak</th>
                             </tr>
                         </thead>
@@ -612,7 +615,22 @@
                         <button type="submit">Tex xodim qo'shish</button>
                         <p class="form-message" id="staffSalaryMessage" aria-live="polite"></p>
                     </form>
-                    <div class="record-list stacked-list" id="staffSalaryList"></div>
+                    <div class="table-wrap compact-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tex xodim</th>
+                                    <th>Lavozimi</th>
+                                    <th>Oy</th>
+                                    <th>Oylik</th>
+                                    <th>Avans</th>
+                                    <th>Qolgan</th>
+                                    <th>Amal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staffSalaryTable"></tbody>
+                        </table>
+                    </div>
                 </article>
 
                 <article class="panel app-view" id="buses" data-view="buses">
@@ -624,16 +642,34 @@
                     </div>
                     <form id="serviceForm" class="wide-form">
                         <label>
-                            Avtobus / haydovchi
-                            <input id="serviceTitle" type="text" placeholder="Masalan: 1-avtobus Chilonzor yo'nalishi" required>
+                            Avtobuschi F.I.Sh
+                            <input id="serviceDriverName" type="text" placeholder="Masalan: Ali Valiyev" required>
                         </label>
                         <label>
-                            Izoh
-                            <input id="serviceNote" type="text" placeholder="Masalan: ertalab va kechki qatnov">
+                            Beriladigan oylik
+                            <input id="serviceSalary" type="number" min="0" placeholder="0" required>
                         </label>
-                        <button type="submit">Avtobus qo'shish</button>
+                        <label>
+                            Berilgan avans
+                            <input id="serviceAdvance" type="number" min="0" placeholder="0">
+                        </label>
+                        <button type="submit">Avtobuschini saqlash</button>
                     </form>
-                    <div class="record-list" id="serviceList"></div>
+                    <div class="table-wrap compact-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Avtobuschi</th>
+                                    <th>Oylik</th>
+                                    <th>Avans</th>
+                                    <th>Qolgan</th>
+                                    <th>Kiritdi</th>
+                                    <th>Amal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="serviceTable"></tbody>
+                        </table>
+                    </div>
                 </article>
             </section>
         </main>

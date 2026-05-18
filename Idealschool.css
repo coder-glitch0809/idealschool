@@ -32,6 +32,7 @@ html {
 }
 
 body {
+    overflow-x: hidden;
     min-height: 100vh;
     background:
         linear-gradient(120deg, rgba(245, 249, 255, 0.95), rgba(230, 242, 255, 0.9)),
@@ -54,6 +55,7 @@ select {
 }
 
 button {
+    width: fit-content;
     min-height: 42px;
     border: 0;
     border-radius: 8px;
@@ -233,14 +235,18 @@ body.dark-theme .brand {
 .main-nav {
     display: grid;
     gap: 8px;
+    grid-template-columns: 1fr;
 }
 
 .main-nav a {
     border-radius: 8px;
     color: #33415d;
     font-weight: 750;
+    line-height: 1.25;
+    min-width: 0;
     padding: 13px 14px;
     text-decoration: none;
+    overflow-wrap: anywhere;
 }
 
 .main-nav a:hover,
@@ -320,7 +326,8 @@ body.dark-theme .main-nav a.active {
     display: grid;
     gap: 22px;
     margin-left: 318px;
-    max-width: 1380px;
+    max-width: none;
+    min-width: 0;
     padding: 18px 26px 34px;
 }
 
@@ -480,11 +487,11 @@ body.dark-theme .panel {
 }
 
 .dashboard-grid {
-    grid-template-columns: 0.85fr 1.15fr;
+    grid-template-columns: 1fr;
 }
 
 .section-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
 }
 
 .finance-entry-grid {
@@ -494,6 +501,8 @@ body.dark-theme .panel {
 }
 
 .panel {
+    width: 100%;
+    min-width: 0;
     padding: 22px;
 }
 
@@ -565,7 +574,7 @@ form,
 
 .wide-form {
     align-items: end;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .wide-form label {
@@ -577,6 +586,7 @@ label {
     display: grid;
     gap: 7px;
     font-weight: 800;
+    min-width: 0;
 }
 
 .check-row {
@@ -593,6 +603,7 @@ label {
 input,
 select {
     width: 100%;
+    max-width: 100%;
     min-height: 44px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -632,6 +643,7 @@ button:disabled {
 .form-message {
     color: var(--blue-dark);
     font-weight: 800;
+    grid-column: 1 / -1;
     margin: 0;
     min-height: 20px;
 }
@@ -707,17 +719,18 @@ body.dark-theme .record-list:empty::before {
 .table-wrap {
     margin-top: 18px;
     overflow-x: auto;
+    width: 100%;
 }
 
 .compact-table {
-    max-height: 360px;
+    max-height: min(62vh, 680px);
     overflow: auto;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 760px;
+    min-width: 680px;
 }
 
 th,
@@ -768,18 +781,18 @@ body.dark-theme tbody tr:hover {
     }
 
     .main-nav {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     }
 
     .metrics,
     .dashboard-grid,
     .section-row,
     .finance-entry-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
     }
 
     .wide-form {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     }
 }
 
@@ -792,6 +805,17 @@ body.dark-theme tbody tr:hover {
         padding: 22px;
     }
 
+    .app-shell {
+        gap: 16px;
+        padding: 0 10px 24px;
+    }
+
+    .panel,
+    .metrics article {
+        border-radius: 14px;
+        padding: 16px;
+    }
+
     .main-nav,
     .metrics,
     .dashboard-grid,
@@ -802,8 +826,13 @@ body.dark-theme tbody tr:hover {
     }
 
     .sidebar {
+        margin: 10px;
         border-radius: 18px;
         padding: 16px;
+    }
+
+    .main-nav a {
+        padding: 12px;
     }
 
     .brand img {
@@ -838,9 +867,77 @@ body.dark-theme tbody tr:hover {
     .panel-head {
         align-items: flex-start;
         flex-direction: column;
+        gap: 10px;
     }
 
     .metrics strong {
         font-size: 1.7rem;
+    }
+
+    form,
+    .record-list {
+        gap: 10px;
+    }
+
+    button {
+        width: 100%;
+        min-height: 46px;
+    }
+
+    input,
+    select {
+        min-height: 46px;
+        padding: 0 12px;
+    }
+
+    .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+    }
+
+    table {
+        min-width: 620px;
+    }
+
+    th,
+    td {
+        padding: 12px 10px;
+    }
+}
+
+@media (max-width: 430px) {
+    .login-screen {
+        padding: 12px;
+    }
+
+    .login-card {
+        border-radius: 20px;
+        padding: 18px;
+    }
+
+    .login-card h1 {
+        font-size: 1.65rem;
+    }
+
+    .brand {
+        align-items: flex-start;
+    }
+
+    .brand strong {
+        font-size: 1.1rem;
+    }
+
+    .hero {
+        min-height: 480px;
+        border-radius: 20px;
+        padding: 20px;
+    }
+
+    .hero-copy h1 {
+        font-size: 2rem;
+    }
+
+    .record-item {
+        padding: 12px;
     }
 }
