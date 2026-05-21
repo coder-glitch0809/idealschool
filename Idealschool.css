@@ -35,7 +35,7 @@ body {
     overflow-x: hidden;
     min-height: 100vh;
     background:
-        linear-gradient(120deg, rgba(245, 249, 255, 0.95), rgba(230, 242, 255, 0.9)),
+        linear-gradient(120deg, rgba(245, 249, 255, 0.96), rgba(230, 242, 255, 0.92)),
         url("photo_2025-08-11_13-29-10.jpg") center 28px / min(560px, 76vw) auto no-repeat fixed;
     color: var(--ink);
     font-family: Inter, "Segoe UI", Arial, sans-serif;
@@ -134,19 +134,19 @@ button.danger {
     padding: 30px;
 }
 
-.login-card img {
+.login-card h1 {
+    font-size: 2rem;
+    line-height: 1.12;
+    margin: 0;
+}
+
+.login-logo {
     width: 150px;
     height: 94px;
     object-fit: contain;
     border-radius: 18px;
     background: #ffffff;
     margin-bottom: 18px;
-}
-
-.login-card h1 {
-    font-size: 2rem;
-    line-height: 1.12;
-    margin: 0;
 }
 
 .login-copy {
@@ -175,6 +175,53 @@ button.danger {
     min-height: 100vh;
 }
 
+.menu-toggle {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 8;
+    display: inline-grid;
+    gap: 5px;
+    place-content: center;
+    width: 48px;
+    min-height: 48px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: var(--shadow);
+}
+
+.menu-toggle span {
+    display: block;
+    width: 22px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--blue-dark);
+}
+
+body.dark-theme .menu-toggle {
+    background: rgba(20, 28, 45, 0.92);
+    border-color: rgba(128, 153, 190, 0.28);
+}
+
+body.dark-theme .menu-toggle span {
+    background: var(--ink);
+}
+
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    display: none;
+    background: rgba(8, 14, 25, 0.42);
+    backdrop-filter: blur(2px);
+}
+
+.platform.sidebar-open .sidebar-backdrop {
+    display: block;
+}
+
 .sidebar {
     position: fixed;
     inset: 18px auto 18px 18px;
@@ -188,7 +235,17 @@ button.danger {
     backdrop-filter: blur(24px);
     box-shadow: var(--shadow);
     padding: 22px;
-    z-index: 5;
+    transform: translateX(calc(-100% - 34px));
+    transition: transform 0.22s ease;
+    z-index: 7;
+}
+
+.platform.sidebar-open .sidebar {
+    transform: translateX(0);
+}
+
+.platform.sidebar-open .menu-toggle {
+    left: 318px;
 }
 
 body.dark-theme .sidebar,
@@ -205,16 +262,18 @@ body.dark-theme .login-card {
     text-decoration: none;
 }
 
-body.dark-theme .brand {
-    color: var(--ink);
+.brand img {
+    width: 56px;
+    height: 56px;
+    flex: 0 0 56px;
+    object-fit: cover;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 10px 22px rgba(25, 88, 215, 0.18);
 }
 
-.brand img {
-    width: 62px;
-    height: 62px;
-    object-fit: cover;
-    border-radius: 18px;
-    box-shadow: 0 10px 22px rgba(25, 88, 215, 0.18);
+body.dark-theme .brand {
+    color: var(--ink);
 }
 
 .brand strong,
@@ -325,14 +384,14 @@ body.dark-theme .main-nav a.active {
 .app-shell {
     display: grid;
     gap: 22px;
-    margin-left: 318px;
+    margin-left: 0;
     max-width: none;
     min-width: 0;
-    padding: 18px 26px 34px;
+    padding: 84px 26px 34px;
 }
 
 .hero {
-    min-height: 350px;
+    min-height: 280px;
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
@@ -341,8 +400,8 @@ body.dark-theme .main-nav a.active {
     position: relative;
     border-radius: 28px;
     background:
-        linear-gradient(105deg, rgba(18, 30, 58, 0.92), rgba(23, 88, 211, 0.64)),
-        url("photo_2025-08-11_13-29-10.jpg") right 54px center / 360px auto no-repeat,
+        linear-gradient(105deg, rgba(18, 30, 58, 0.9), rgba(23, 88, 211, 0.76)),
+        url("photo_2025-08-11_13-29-10.jpg") right 42px center / 300px auto no-repeat,
         #173d88;
     color: #ffffff;
     padding: 38px;
@@ -378,7 +437,7 @@ body.dark-theme .main-nav a.active {
 }
 
 .hero h1 {
-    font-size: clamp(2rem, 4vw, 4.1rem);
+    font-size: clamp(1.65rem, 3vw, 3rem);
     line-height: 1.02;
     margin: 0;
     max-width: 850px;
@@ -454,7 +513,10 @@ body.dark-theme button.danger {
 .panel {
     border: 1px solid rgba(255, 255, 255, 0.74);
     border-radius: 18px;
-    background: var(--surface);
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
+        url("photo_2025-08-11_13-29-10.jpg") right 22px top 18px / 150px auto no-repeat,
+        var(--surface);
     backdrop-filter: blur(18px);
     box-shadow: 0 15px 35px rgba(24, 52, 97, 0.1);
 }
@@ -462,6 +524,10 @@ body.dark-theme button.danger {
 body.dark-theme .metrics article,
 body.dark-theme .panel {
     border-color: rgba(128, 153, 190, 0.22);
+    background:
+        linear-gradient(rgba(20, 28, 45, 0.9), rgba(20, 28, 45, 0.9)),
+        url("photo_2025-08-11_13-29-10.jpg") right 22px top 18px / 150px auto no-repeat,
+        var(--surface);
 }
 
 .metrics article {
@@ -722,6 +788,10 @@ body.dark-theme .record-list:empty::before {
     width: 100%;
 }
 
+.table-wrap.is-empty {
+    display: none;
+}
+
 .compact-table {
     max-height: min(62vh, 680px);
     overflow: auto;
@@ -731,6 +801,36 @@ table {
     width: 100%;
     border-collapse: collapse;
     min-width: 680px;
+}
+
+.report-table {
+    border: 1px solid #1f2937;
+}
+
+.report-table th,
+.report-table td {
+    border: 1px solid #1f2937;
+    color: #111827;
+}
+
+.report-table th {
+    background: #e7f1fb;
+    font-size: 0.84rem;
+    text-align: center;
+}
+
+.report-table td {
+    background: rgba(255, 255, 255, 0.96);
+}
+
+body.dark-theme .report-table th {
+    background: #dbeafe;
+    color: #111827;
+}
+
+body.dark-theme .report-table td {
+    background: #f8fafc;
+    color: #111827;
 }
 
 th,
@@ -746,6 +846,10 @@ th {
     font-size: 0.78rem;
     letter-spacing: 0.05em;
     text-transform: uppercase;
+}
+
+thead tr:first-child th[colspan] {
+    text-align: center;
 }
 
 td {
@@ -770,18 +874,22 @@ body.dark-theme tbody tr:hover {
 
 @media (max-width: 1180px) {
     .sidebar {
-        position: static;
-        width: auto;
-        margin: 14px;
+        position: fixed;
+        width: min(320px, calc(100vw - 28px));
+        margin: 0;
+    }
+
+    .platform.sidebar-open .menu-toggle {
+        left: min(calc(100vw - 62px), 334px);
     }
 
     .app-shell {
         margin-left: 0;
-        padding: 0 14px 28px;
+        padding: 82px 14px 28px;
     }
 
     .main-nav {
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        grid-template-columns: 1fr;
     }
 
     .metrics,
@@ -826,7 +934,6 @@ body.dark-theme tbody tr:hover {
     }
 
     .sidebar {
-        margin: 10px;
         border-radius: 18px;
         padding: 16px;
     }
@@ -835,21 +942,34 @@ body.dark-theme tbody tr:hover {
         padding: 12px;
     }
 
-    .brand img {
-        width: 54px;
-        height: 54px;
+    .hero {
+        min-height: 260px;
+        align-items: flex-end;
+        flex-direction: row;
+        justify-content: space-between;
+        background:
+            linear-gradient(180deg, rgba(18, 30, 58, 0.86), rgba(18, 30, 58, 0.96)),
+            url("photo_2025-08-11_13-29-10.jpg") right 18px top 18px / 170px auto no-repeat,
+            #173d88;
+        padding: 20px;
     }
 
-    .hero {
-        min-height: 560px;
-        align-items: flex-end;
-        flex-direction: column;
-        justify-content: flex-end;
-        background:
-            linear-gradient(180deg, rgba(18, 30, 58, 0.5), rgba(18, 30, 58, 0.94)),
-            url("photo_2025-08-11_13-29-10.jpg") center 38px / 260px auto no-repeat,
-            #173d88;
-        padding: 26px;
+    .hero-logo {
+        width: 86px;
+        height: 54px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        padding: 6px;
+    }
+
+    .hero h1 {
+        font-size: 1.65rem;
+    }
+
+    .hero p:last-child {
+        font-size: 0.92rem;
+        line-height: 1.45;
+        margin-top: 10px;
     }
 
     .hero-actions {
@@ -923,18 +1043,24 @@ body.dark-theme tbody tr:hover {
         align-items: flex-start;
     }
 
+    .brand img {
+        width: 50px;
+        height: 50px;
+        flex-basis: 50px;
+    }
+
     .brand strong {
         font-size: 1.1rem;
     }
 
     .hero {
-        min-height: 480px;
+        min-height: 220px;
         border-radius: 20px;
-        padding: 20px;
+        padding: 18px;
     }
 
     .hero-copy h1 {
-        font-size: 2rem;
+        font-size: 1.45rem;
     }
 
     .record-item {
