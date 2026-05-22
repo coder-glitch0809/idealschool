@@ -520,11 +520,7 @@ document.querySelector("#paymentCategory")?.addEventListener("change", fillRequi
 document.querySelector("#dormitoryPaymentButton")?.addEventListener("click", () => {
     setValue("#paymentCategory", "Yotoqxona");
     fillRequiredPayment();
-    const student = state.students.find((item) => item.id === value("#paymentStudent"));
-    if (student) {
-        const dormitoryFee = student.dormitoryFee || DORMITORY_FEE;
-        setValue("#paymentPaid", dormitoryFee || 0);
-    }
+    setValue("#paymentPaid", numberValue("#paymentPaid") + DORMITORY_FEE);
 });
 document.querySelector("#financeClassFilter")?.addEventListener("change", renderFinancePaymentsTable);
 document.querySelector("#studentClassFilter")?.addEventListener("change", renderStudentByClassSection);
@@ -800,7 +796,7 @@ function renderStudents() {
             <td>${escapeHtml(student.name)}</td>
             <td>${escapeHtml(student.className || "-")}</td>
             <td>${escapeHtml(student.phone || "-")}</td>
-            <td>${formatMoney(student.monthlyFee || 0)} so'm</td>
+            <td>${formatMoney((student.monthlyFee || 0) + (student.dormitory ? (student.dormitoryFee || DORMITORY_FEE) : 0))} so'm</td>
             <td>${formatMoney(status.paid)} so'm</td>
             <td>${formatMoney(status.debt)} so'm</td>
             <td>${student.dormitory ? `${formatMoney(student.dormitoryFee || DORMITORY_FEE)} so'm` : "Yo'q"}</td>
@@ -1138,7 +1134,7 @@ function renderStudentByClassSection() {
             <td>${escapeHtml(student.name)}</td>
             <td>${escapeHtml(student.className || "-")}</td>
             <td>${escapeHtml(student.phone || "-")}</td>
-            <td>${formatMoney(student.monthlyFee || 0)} so'm</td>
+            <td>${formatMoney((student.monthlyFee || 0) + (student.dormitory ? (student.dormitoryFee || DORMITORY_FEE) : 0))} so'm</td>
             <td>${formatMoney(status.paid)} so'm</td>
             <td>${formatMoney(status.debt)} so'm</td>
             <td>${student.dormitory ? `${formatMoney(student.dormitoryFee || DORMITORY_FEE)} so'm` : "Yo'q"}</td>
@@ -1269,7 +1265,9 @@ function renderFinancePaymentsTable() {
                 <td>${escapeHtml(payment.method || "Naqd pul")}</td>
                 <td>${escapeHtml(payment.note || payment.category || "-")}</td>
                 <td>${escapeHtml(formatDate(payment.paymentDate || payment.createdAt))}</td>
+                <td></td>
             `;
+            appendTableActions(row, "payments", payment.id);
             table.append(row);
         });
     updateTableWrapVisibility(table);
@@ -2182,10 +2180,10 @@ function isBigClass(className) {
 function studentPaymentStatus(student) {
     const payments = state.payments.filter((payment) =>
         payment.studentId === student.id &&
-        payment.month === currentMonth &&
-        (payment.category || "O'qish to'lovi") === "O'qish to'lovi"
+        payment.month === currentMonth
     );
-    const required = student.monthlyFee || defaultMonthlyFee(student.className);
+    const required = (student.monthlyFee || defaultMonthlyFee(student.className)) +
+        (student.dormitory ? (student.dormitoryFee || DORMITORY_FEE) : 0);
     const paid = sum(payments, "paidAmount");
     const debt = Math.max(required - paid, 0);
 
