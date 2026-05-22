@@ -1,5 +1,6 @@
 const STORAGE_KEY = "idealSchoolPlatformData";
 const THEME_KEY = "idealSchoolTheme";
+const DORMITORY_FEE = 300000;
 
 const defaultUsers = [
     {
@@ -53,14 +54,6 @@ const roleResponsibilities = {
     warehouse: "Zap xoz"
 };
 
-const classOptions = [
-    "1-A", "2-A", "3-A", "4-A", "5-A", "6-A", "7-A",
-    "8 tabiiy", "8 ijtimoiy", "8 xorijiy", "8 aniq", "8 tabiiy rus",
-    "9 tabiiy", "9 ijtimoiy", "9 xorijiy", "9 aniq", "9 tabiiy rus",
-    "10 tabiiy", "10 ijtimoiy", "10 xorijiy", "10 aniq", "10 tabiiy rus",
-    "11 tabiiy", "11 ijtimoiy", "11 xorijiy", "11 aniq", "11 tabiiy rus"
-];
-
 const permissions = {
     superadmin: ["students", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
     admin: ["students", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
@@ -112,6 +105,7 @@ setValue("#tutorMonth", currentMonth);
 setValue("#staffMonth", currentMonth);
 setValue("#paymentDate", currentDate);
 setValue("#expenseDate", currentDate);
+setValue("#pendingExpenseDate", currentDate);
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
 initFirebaseBackend();
 loadStateFromServer();
@@ -200,7 +194,7 @@ document.querySelector("#studentForm").addEventListener("submit", (event) => {
         phone: value("#studentPhone"),
         monthlyFee: numberValue("#studentFee") || defaultMonthlyFee(className),
         dormitory,
-        dormitoryFee: dormitory ? (numberValue("#studentDormFee") || Number(state.settings.dormitoryFee || 0)) : 0
+        dormitoryFee: dormitory ? DORMITORY_FEE : 0
     });
 
     saveAndRender(event.target, "#studentMessage", "O'quvchi saqlandi.");
@@ -369,37 +363,74 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
     event.preventDefault();
     if (!can("finance")) return;
 
-    // resolve expense type (use custom if Boshqa selected)
-    const selectedType = value("#expenseType");
-    const expenseTypeResolved = selectedType === 'Boshqa' ? (value('#expenseTypeCustom') || 'Boshqa') : selectedType;
-    const recipientId = document.querySelector('#expenseRecipient') ? value('#expenseRecipient') : '';
+    const isSalaryAdvance = document.querySelector("#expenseSalaryCheckbox")?.checked || false;
+    const recipientId = isSalaryAdvance && document.querySelector("#expenseRecipient") ? value("#expenseRecipient") : "";
+    const teacher = recipientId ? state.users.find((user) => user.id === recipientId) : null;
+    const expenseTypeResolved = isSalaryAdvance ? "Oldindan avans" : (value("#expenseType") || "Rasxod");
 
+    const amount = numberValue("#financeAmount");
     state.finance.push({
         id: createId("finance"),
         type: "Rasxod",
         expenseType: expenseTypeResolved,
         recipientId: recipientId,
+        salaryAdvance: isSalaryAdvance,
+        recipientName: teacher ? teacher.fullName : "",
         method: value("#expenseMethod"),
         title: value("#financeTitle"),
         quantity: value("#expenseQuantity"),
-        amount: numberValue("#financeAmount"),
+        amount,
         expenseDate: value("#expenseDate") || currentDate,
         createdBy: currentUser.fullName,
         createdAt: new Date().toISOString()
     });
 
-    // if custom type provided, save to favorites (keep max 3)
-    if (selectedType === 'Boshqa' && value('#expenseTypeCustom')) {
-        const fav = state.settings.favoriteExpenseTypes || [];
-        const custom = value('#expenseTypeCustom').trim();
-        if (custom && !fav.includes(custom)) {
-            fav.unshift(custom);
-            state.settings.favoriteExpenseTypes = fav.slice(0,3);
-        }
+    if (isSalaryAdvance && teacher) {
+        state.salaryReports.push({
+            id: createId("salaryReport"),
+            month: currentMonth,
+            teacherId: teacher.id,
+            teacherName: teacher.fullName,
+            position: teacher.subject || "O'qituvchi",
+            subject: teacher.subject || "O'qituvchi",
+            className: teacher.assignedClass || "",
+            salaryAmount: 0,
+            advance: amount,
+            loan: 0,
+            advanceType: value("#expenseMethod"),
+            paymentTarget: "Oldindan avans",
+            bankCard: "",
+            calculatedSalary: 0,
+            remainingSalary: 0,
+            createdBy: currentUser.fullName
+        });
     }
 
     saveAndRender(event.target, "#expenseMessage", "Rasxod saqlandi.");
     setValue("#expenseDate", currentDate);
+    setValue("#expenseType", "");
+    document.querySelector("#expenseSalaryCheckbox").checked = false;
+    toggleExpenseSalaryFields();
+});
+
+document.querySelector("#pendingExpenseForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!can("finance")) return;
+
+    state.pendingExpenses.push({
+        id: createId("pendingExpense"),
+        recipientName: value("#pendingExpenseRecipient"),
+        title: value("#pendingExpenseTitle"),
+        amount: numberValue("#pendingExpenseAmount"),
+        method: value("#pendingExpenseMethod"),
+        expenseDate: value("#pendingExpenseDate") || currentDate,
+        createdById: currentUser.id,
+        createdBy: currentUser.fullName,
+        createdAt: new Date().toISOString()
+    });
+
+    saveAndRender(event.target, "#pendingExpenseMessage", "Rasxod superadmin eslatmasiga yuborildi.");
+    setValue("#pendingExpenseDate", currentDate);
 });
 
 document.querySelector("#feeSettingsForm").addEventListener("submit", (event) => {
@@ -408,7 +439,6 @@ document.querySelector("#feeSettingsForm").addEventListener("submit", (event) =>
 
     state.settings.smallClassFee = numberValue("#smallClassFee");
     state.settings.bigClassFee = numberValue("#bigClassFee");
-    state.settings.dormitoryFee = numberValue("#defaultDormitoryFee");
 
     saveAndRender(null, "#feeSettingsMessage", "Summalar saqlandi.");
 });
@@ -483,13 +513,20 @@ document.querySelector("#dormitoryPaymentButton")?.addEventListener("click", () 
     fillRequiredPayment();
     const student = state.students.find((item) => item.id === value("#paymentStudent"));
     if (student) {
-        const dormitoryFee = student.dormitoryFee || Number(state.settings.dormitoryFee || 0);
+        const dormitoryFee = student.dormitoryFee || DORMITORY_FEE;
         setValue("#paymentPaid", dormitoryFee || 0);
     }
 });
 document.querySelector("#financeClassFilter")?.addEventListener("change", renderFinancePaymentsTable);
 document.querySelector("#studentClassFilter")?.addEventListener("change", renderStudentByClassSection);
 document.querySelector("#userRole")?.addEventListener("change", renderRoleResponsibilityOptions);
+document.querySelector("#expenseSalaryCheckbox")?.addEventListener("change", toggleExpenseSalaryFields);
+document.querySelector("#advanceExpenseButton")?.addEventListener("click", () => {
+    const checkbox = document.querySelector("#expenseSalaryCheckbox");
+    if (checkbox) checkbox.checked = true;
+    setValue("#expenseType", "Oldindan avans");
+    toggleExpenseSalaryFields();
+});
 [
     "#salaryReportSalary",
     "#salaryReportAdvance",
@@ -519,8 +556,7 @@ function renderApp() {
     applyPermissions();
     renderTeacherOptions();
     renderPaymentClassOptions();
-    renderExpenseTypeOptions();
-    renderClassOptions();
+    renderExpenseRecipientOptions();
     renderRoleResponsibilityOptions();
     renderFinanceClassFilter();
     renderPaymentStudentOptions();
@@ -538,6 +574,8 @@ function renderApp() {
     renderSalaries();
     renderTutors();
     renderFinance();
+    renderPendingExpenses();
+    renderExpenseReminders();
     renderDashboardMonitoring();
     renderFinancePaymentsTable();
     renderFounders();
@@ -576,25 +614,28 @@ function renderExpenseTypeOptions() {
 }
 
 document.querySelector("#expenseType")?.addEventListener("change", () => {
-    const val = value("#expenseType");
-    const customWrap = document.querySelector('#expenseTypeCustomWrap');
-    const recipientWrap = document.querySelector('#expenseRecipientWrap');
-    if (customWrap) customWrap.classList.toggle('visually-hidden', val !== 'Boshqa');
-    // show recipient when oylik selected
-    if (recipientWrap) recipientWrap.classList.toggle('visually-hidden', val !== 'Oylik');
+    toggleExpenseSalaryFields();
 });
 
 function renderExpenseRecipientOptions() {
     const select = document.querySelector('#expenseRecipient');
     if (!select) return;
     select.innerHTML = '';
-    const users = state.users.filter(u => ['teacher','staff','zauch','admin'].includes(u.role));
+    const users = state.users.filter(u => u.role === 'teacher');
     users.forEach((u) => {
         const opt = document.createElement('option');
         opt.value = u.id;
         opt.textContent = u.fullName + (u.assignedClass ? ` — ${u.assignedClass}` : '');
         select.append(opt);
     });
+    toggleExpenseSalaryFields();
+}
+
+function toggleExpenseSalaryFields() {
+    const checked = document.querySelector("#expenseSalaryCheckbox")?.checked || false;
+    const recipientWrap = document.querySelector("#expenseRecipientWrap");
+    if (recipientWrap) recipientWrap.classList.toggle("visually-hidden", !checked);
+    if (checked) setValue("#expenseType", "Oldindan avans");
 }
 
 function setupNavigation() {
@@ -638,6 +679,7 @@ function applyPermissions() {
     toggleForm("#salaryForm", can("salaries"));
     toggleForm("#tutorForm", can("tutors"));
     toggleForm("#financeForm", can("finance"));
+    toggleForm("#pendingExpenseForm", can("finance"));
     toggleForm("#founderForm", can("founders"));
     toggleForm("#serviceForm", can("services"));
     toggleForm("#staffSalaryForm", can("services"));
@@ -683,18 +725,6 @@ function renderPaymentClassOptions() {
     if (visibleClasses.includes(previous)) select.value = previous;
 }
 
-function renderClassOptions() {
-    const list = document.querySelector("#classOptions");
-    if (!list) return;
-    const classes = [...new Set([...classOptions, ...visibleClassNames()])].filter(Boolean);
-    list.innerHTML = "";
-    classes.forEach((className) => {
-        const option = document.createElement("option");
-        option.value = className;
-        list.append(option);
-    });
-}
-
 function renderRoleResponsibilityOptions() {
     const roleSelect = document.querySelector("#userRole");
     const responsibilitySelect = document.querySelector("#userResponsibility");
@@ -730,7 +760,7 @@ function fillRequiredPayment() {
     const student = state.students.find((item) => item.id === value("#paymentStudent"));
     if (student) {
         const amount = value("#paymentCategory") === "Yotoqxona"
-            ? (student.dormitoryFee || state.settings.dormitoryFee)
+            ? (student.dormitoryFee || DORMITORY_FEE)
             : (student.monthlyFee || defaultMonthlyFee(student.className));
         setValue("#paymentRequired", amount || 0);
     }
@@ -764,7 +794,7 @@ function renderStudents() {
             <td>${formatMoney(student.monthlyFee || 0)} so'm</td>
             <td>${formatMoney(status.paid)} so'm</td>
             <td>${formatMoney(status.debt)} so'm</td>
-            <td>${student.dormitory ? `${formatMoney(student.dormitoryFee || state.settings.dormitoryFee || 0)} so'm` : "Yo'q"}</td>
+            <td>${student.dormitory ? `${formatMoney(student.dormitoryFee || DORMITORY_FEE)} so'm` : "Yo'q"}</td>
             <td></td>
         `;
         appendTableActions(row, "students", student.id);
@@ -885,11 +915,8 @@ function openFinanceEditModal(id) {
     const item = state.finance.find((entry) => entry.id === id);
     if (!item) return;
 
-    const baseTypes = ["Oylik", "Kommunal", "Ijara", "Transport", "Oziq-ovqat", "Ta'mirlash", "Boshqa"];
-    const expenseType = item.expenseType || "Boshqa";
     setValue("#financeEditId", item.id);
-    setValue("#financeEditExpenseType", baseTypes.includes(expenseType) ? expenseType : "Boshqa");
-    setValue("#financeEditExpenseTypeCustom", baseTypes.includes(expenseType) ? "" : expenseType);
+    setValue("#financeEditExpenseType", item.expenseType || "");
     setValue("#financeEditMethod", item.method || "Naqd pul");
     setValue("#financeEditTitle", item.title || "");
     setValue("#financeEditQuantity", item.quantity || "");
@@ -910,8 +937,7 @@ function saveFinanceEdit(event) {
     const item = state.finance.find((entry) => entry.id === id);
     if (!item) return;
 
-    const selectedType = value("#financeEditExpenseType");
-    item.expenseType = selectedType === "Boshqa" ? (value("#financeEditExpenseTypeCustom") || "Boshqa") : selectedType;
+    item.expenseType = value("#financeEditExpenseType") || "Rasxod";
     item.method = value("#financeEditMethod");
     item.title = value("#financeEditTitle");
     item.quantity = value("#financeEditQuantity");
@@ -1106,7 +1132,7 @@ function renderStudentByClassSection() {
             <td>${formatMoney(student.monthlyFee || 0)} so'm</td>
             <td>${formatMoney(status.paid)} so'm</td>
             <td>${formatMoney(status.debt)} so'm</td>
-            <td>${student.dormitory ? `${formatMoney(student.dormitoryFee || state.settings.dormitoryFee || 0)} so'm` : "Yo'q"}</td>
+            <td>${student.dormitory ? `${formatMoney(student.dormitoryFee || DORMITORY_FEE)} so'm` : "Yo'q"}</td>
             <td>${status.label}</td>
         `;
         table.append(row);
@@ -1205,7 +1231,7 @@ function renderFinance() {
             <td>${escapeHtml(item.quantity || "-")}</td>
             <td>${formatMoney(item.amount)} so'm</td>
             <td>${escapeHtml(item.expenseType || "-")}</td>
-            <td>${escapeHtml((state.users.find(u => u.id === item.recipientId)?.fullName) || "-")}</td>
+            <td>${escapeHtml(item.recipientName || (state.users.find(u => u.id === item.recipientId)?.fullName) || "-")}</td>
             <td>${escapeHtml(item.method || "Naqd pul")}</td>
             <td>${escapeHtml(formatDate(item.expenseDate || item.createdAt))}</td>
             <td></td>
@@ -1240,6 +1266,91 @@ function renderFinancePaymentsTable() {
     updateTableWrapVisibility(table);
 }
 
+function renderPendingExpenses() {
+    const table = document.querySelector("#pendingExpenseTable");
+    if (!table) return;
+
+    table.innerHTML = "";
+    state.pendingExpenses
+        .filter((item) => item.createdById === currentUser?.id)
+        .slice()
+        .reverse()
+        .forEach((item, index) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${escapeHtml(item.recipientName || "-")}</td>
+                <td>${escapeHtml(item.title || "-")}</td>
+                <td>${formatMoney(item.amount)} so'm</td>
+                <td>${escapeHtml(item.method || "Naqd pul")}</td>
+                <td>${escapeHtml(formatDate(item.expenseDate || item.createdAt))}</td>
+                <td>Superadmin kutyapti</td>
+            `;
+            table.append(row);
+        });
+    updateTableWrapVisibility(table);
+}
+
+function renderExpenseReminders() {
+    const section = document.querySelector("#expenseReminders");
+    const list = document.querySelector("#expenseReminderList");
+    const count = document.querySelector("#expenseReminderCount");
+    if (!section || !list || !count) return;
+
+    const allowed = currentUser?.role === "superadmin";
+    section.classList.toggle("is-hidden", !allowed);
+    list.innerHTML = "";
+    count.textContent = `${state.pendingExpenses.length} ta`;
+    if (!allowed) return;
+
+    state.pendingExpenses.slice().reverse().forEach((item) => {
+        const card = document.createElement("div");
+        card.className = "record-item";
+        card.innerHTML = `
+            <strong>${escapeHtml(item.recipientName || "-")} - ${formatMoney(item.amount)} so'm</strong>
+            <span>${escapeHtml(item.title || "-")} | ${escapeHtml(item.method || "Naqd pul")} | ${escapeHtml(formatDate(item.expenseDate || item.createdAt))}</span>
+            <small>Kiritdi: ${escapeHtml(item.createdBy || "-")}</small>
+        `;
+        const actions = document.createElement("div");
+        actions.className = "record-actions";
+        actions.append(
+            actionButton("Rasxodlarga qo'shish", "ghost", () => approvePendingExpense(item.id)),
+            actionButton("Olib tashlash", "danger", () => removePendingExpense(item.id))
+        );
+        card.append(actions);
+        list.append(card);
+    });
+}
+
+function approvePendingExpense(id) {
+    const item = state.pendingExpenses.find((entry) => entry.id === id);
+    if (!item) return;
+
+    state.finance.push({
+        id: createId("finance"),
+        type: "Rasxod",
+        expenseType: item.title || "Kassa rasxodi",
+        recipientName: item.recipientName || "",
+        method: item.method || "Naqd pul",
+        title: item.title || "Kassa rasxodi",
+        quantity: "",
+        amount: Number(item.amount || 0),
+        expenseDate: item.expenseDate || currentDate,
+        createdBy: item.createdBy || currentUser.fullName,
+        approvedBy: currentUser.fullName,
+        createdAt: item.createdAt || new Date().toISOString()
+    });
+    state.pendingExpenses = state.pendingExpenses.filter((entry) => entry.id !== id);
+    saveState();
+    renderApp();
+}
+
+function removePendingExpense(id) {
+    state.pendingExpenses = state.pendingExpenses.filter((entry) => entry.id !== id);
+    saveState();
+    renderApp();
+}
+
 function renderFounders() {
     const summary = document.querySelector("#founderSummary");
     const list = document.querySelector("#founderList");
@@ -1272,9 +1383,9 @@ function renderDashboardMonitoring() {
     const todayPayments = state.payments.filter((payment) => formatDate(payment.paymentDate || payment.createdAt) === today);
     const todayExpenses = state.finance.filter((item) => item.type === "Rasxod" && formatDate(item.expenseDate || item.createdAt) === today);
     const incomeItems = [
-        { label: "Naqd", value: sum(todayPayments.filter((item) => item.method === "Naqd pul"), "paidAmount") },
-        { label: "Click", value: sum(todayPayments.filter((item) => item.method === "Click" || item.method === "Click/Payme"), "paidAmount") },
-        { label: "Hisob", value: sum(todayPayments.filter((item) => item.method === "Hisob raqam"), "paidAmount") }
+        { label: "Naqd", value: sum(todayPayments.filter((item) => item.method === "Naqd pul"), "paidAmount"), color: "#22c55e" },
+        { label: "Click", value: sum(todayPayments.filter((item) => item.method === "Click" || item.method === "Click/Payme"), "paidAmount"), color: "#38bdf8" },
+        { label: "Hisob", value: sum(todayPayments.filter((item) => item.method === "Hisob raqam"), "paidAmount"), color: "#facc15" }
     ];
     const expenseGroups = groupAmounts(todayExpenses, "expenseType", "amount");
     const totalIncome = incomeItems.reduce((total, item) => total + item.value, 0);
@@ -1282,7 +1393,7 @@ function renderDashboardMonitoring() {
 
     document.querySelector("#dailyIncomeBadge").textContent = `${formatMoney(totalIncome)} so'm`;
     document.querySelector("#dailyExpenseBadge").textContent = `${formatMoney(totalExpense)} so'm`;
-    renderBarChart("#dailyIncomeChart", incomeItems, totalIncome);
+    renderIncomeChart("#dailyIncomeChart", incomeItems, totalIncome);
     renderBarChart("#dailyExpenseChart", expenseGroups.length ? expenseGroups : [{ label: "Rasxod", value: 0 }], totalExpense);
 }
 
@@ -1382,30 +1493,132 @@ function recordItem({ title, meta, note, id, collection }) {
     return item;
 }
 
+function openInlineEditModal({ title, description = "Ma'lumotlarni tizim ichida tahrirlang.", fields, onSave }) {
+    document.querySelector("#inlineEditModal")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.id = "inlineEditModal";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+
+    const fieldMarkup = fields.map((field) => {
+        if (field.type === "select") {
+            const options = field.options.map((option) =>
+                `<option value="${escapeHtml(option)}"${String(option) === String(field.value || "") ? " selected" : ""}>${escapeHtml(option)}</option>`
+            ).join("");
+            return `
+                <label>
+                    ${escapeHtml(field.label)}
+                    <select name="${escapeHtml(field.name)}">${options}</select>
+                </label>
+            `;
+        }
+        if (field.type === "checkbox") {
+            return `
+                <label class="check-row">
+                    <input name="${escapeHtml(field.name)}" type="checkbox"${field.value ? " checked" : ""}>
+                    <span>${escapeHtml(field.label)}</span>
+                </label>
+            `;
+        }
+        return `
+            <label>
+                ${escapeHtml(field.label)}
+                <input name="${escapeHtml(field.name)}" type="${escapeHtml(field.type || "text")}" value="${escapeHtml(field.value ?? "")}" ${field.min !== undefined ? `min="${escapeHtml(field.min)}"` : ""}>
+            </label>
+        `;
+    }).join("");
+
+    overlay.innerHTML = `
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div>
+                    <h2>${escapeHtml(title)}</h2>
+                    <p class="modal-description">${escapeHtml(description)}</p>
+                </div>
+                <button type="button" class="modal-close" aria-label="Yopish">×</button>
+            </div>
+            <form class="modal-form modal-grid">
+                ${fieldMarkup}
+                <p class="form-message" data-modal-message aria-live="polite"></p>
+                <div class="modal-actions">
+                    <button type="submit">Saqlash</button>
+                    <button type="button" class="secondary" data-cancel>Bekor qilish</button>
+                </div>
+            </form>
+        </div>
+    `;
+
+    const close = () => overlay.remove();
+    overlay.querySelector(".modal-close").addEventListener("click", close);
+    overlay.querySelector("[data-cancel]").addEventListener("click", close);
+    overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) close();
+    });
+    overlay.querySelector("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const data = Object.fromEntries(formData.entries());
+        fields.filter((field) => field.type === "checkbox").forEach((field) => {
+            data[field.name] = formData.has(field.name);
+        });
+        const result = onSave(data, overlay.querySelector("[data-modal-message]"));
+        if (result === false) return;
+        close();
+    });
+
+    document.body.append(overlay);
+}
+
 function editRecord(collection, id) {
     const item = state[collection].find((entry) => entry.id === id);
     if (!item) return;
 
     if (collection === "payments") {
-        const paid = prompt("To'langan summani tahrirlang", item.paidAmount);
-        if (paid !== null) item.paidAmount = Number(paid || 0);
-        const method = prompt("To'lov usulini tahrirlang: Naqd pul, Hisob raqam", item.method || "Naqd pul");
-        if (method) item.method = method.trim();
-        const note = prompt("Chegirma yoki izohni tahrirlang", item.note || "");
-        if (note !== null) item.note = note.trim();
-        const paymentDate = prompt("Sanani tahrirlang (YYYY-MM-DD)", item.paymentDate || formatDate(item.createdAt) || currentDate);
-        if (paymentDate !== null) item.paymentDate = paymentDate.trim();
-        const contact = prompt("Aloqa holatini tahrirlang", item.contactStatus);
-        if (contact) item.contactStatus = contact.trim();
+        openInlineEditModal({
+            title: "To'lovni tahrirlash",
+            fields: [
+                { name: "paidAmount", label: "To'langan summa", type: "number", min: 0, value: item.paidAmount || 0 },
+                { name: "method", label: "To'lov usuli", type: "select", value: item.method || "Naqd pul", options: ["Naqd pul", "Click", "Hisob raqam"] },
+                { name: "note", label: "Chegirma va izoh", type: "text", value: item.note || "" },
+                { name: "paymentDate", label: "Sana", type: "date", value: item.paymentDate || formatDate(item.createdAt) || currentDate },
+                { name: "contactStatus", label: "Aloqa holati", type: "select", value: item.contactStatus || "Aloqa qilinmagan", options: ["Aloqa qilinmagan", "Telefon qilindi", "Va'da berdi", "Hal qilindi"] }
+            ],
+            onSave: (data) => {
+                item.paidAmount = Number(data.paidAmount || 0);
+                item.method = data.method;
+                item.note = data.note;
+                item.paymentDate = data.paymentDate || currentDate;
+                item.contactStatus = data.contactStatus;
+                saveState();
+                renderApp();
+            }
+        });
+        return;
     }
     if (collection === "students") {
-        const fee = prompt("Oylik to'lovni tahrirlang", item.monthlyFee || 0);
-        if (fee !== null) item.monthlyFee = Number(fee || 0);
-        const phone = prompt("Telefonni tahrirlang", item.phone || "");
-        if (phone !== null) item.phone = phone.trim();
-        item.dormitory = confirm("O'quvchi yotoqxonada qoladimi?");
-        const dormFee = prompt("Yotoqxona to'lovini kiriting", item.dormitoryFee || 0);
-        if (dormFee !== null) item.dormitoryFee = Number(dormFee || 0);
+        openInlineEditModal({
+            title: "O'quvchini tahrirlash",
+            fields: [
+                { name: "name", label: "O'quvchi F.I.Sh", type: "text", value: item.name || "" },
+                { name: "className", label: "Sinf", type: "text", value: item.className || "" },
+                { name: "phone", label: "Telefon", type: "tel", value: item.phone || "" },
+                { name: "monthlyFee", label: "Oylik to'lov", type: "number", min: 0, value: item.monthlyFee || 0 },
+                { name: "dormitory", label: "Yotoqxonada qoladi (+300000 so'm)", type: "checkbox", value: Boolean(item.dormitory) }
+            ],
+            onSave: (data) => {
+                item.name = data.name;
+                item.className = normalizeClass(data.className);
+                item.phone = data.phone;
+                item.monthlyFee = Number(data.monthlyFee || 0);
+                item.dormitory = Boolean(data.dormitory);
+                item.dormitoryFee = item.dormitory ? DORMITORY_FEE : 0;
+                saveState();
+                renderApp();
+            }
+        });
+        return;
     }
     if (collection === "salaryReports") {
         openSalaryReportEditModal(id);
@@ -1416,67 +1629,111 @@ function editRecord(collection, id) {
         return;
     }
     if (collection === "salaries") {
-        const advance = prompt("Avans summasini tahrirlang", item.advance);
-        if (advance !== null) item.advance = Number(advance || 0);
+        openInlineEditModal({
+            title: "Oylikni tahrirlash",
+            fields: [
+                { name: "baseSalary", label: "Jami oylik", type: "number", min: 0, value: item.baseSalary || 0 },
+                { name: "advance", label: "Avans", type: "number", min: 0, value: item.advance || 0 },
+                { name: "bonus", label: "Bonus / KPI", type: "number", min: 0, value: item.bonus || 0 }
+            ],
+            onSave: (data) => {
+                item.baseSalary = Number(data.baseSalary || 0);
+                item.advance = Number(data.advance || 0);
+                item.bonus = Number(data.bonus || 0);
+                saveState();
+                renderApp();
+            }
+        });
+        return;
     }
     if (collection === "tutors") {
-        const bonus = prompt("KPI bonusni tahrirlang", item.bonus);
-        if (bonus !== null) item.bonus = Number(bonus || 0);
+        openInlineEditModal({
+            title: "Repetitor oyligini tahrirlash",
+            fields: [
+                { name: "studentsCount", label: "Bola soni", type: "number", min: 0, value: item.studentsCount || 0 },
+                { name: "hours", label: "O'tgan soati", type: "number", min: 0, value: item.hours || 0 },
+                { name: "rate", label: "Stavka", type: "number", min: 0, value: item.rate || 0 },
+                { name: "bonus", label: "KPI bonus", type: "number", min: 0, value: item.bonus || 0 }
+            ],
+            onSave: (data) => {
+                item.studentsCount = Number(data.studentsCount || 0);
+                item.hours = Number(data.hours || 0);
+                item.rate = Number(data.rate || 0);
+                item.bonus = Number(data.bonus || 0);
+                saveState();
+                renderApp();
+            }
+        });
+        return;
     }
     if (collection === "finance") {
         openFinanceEditModal(id);
         return;
     }
     if (collection === "founders") {
-        const percent = prompt("Ulush foizini tahrirlang", item.percent);
-        if (percent !== null) {
-            const nextPercent = Number(percent || 0);
-            const otherPercent = state.founders
-                .filter((founder) => founder.id !== item.id)
-                .reduce((total, founder) => total + Number(founder.percent || 0), 0);
-            if (otherPercent + nextPercent > 100) {
-                alert(`Ta'sischilar ulushi 100% dan oshmasligi kerak. Qoldiq: ${100 - otherPercent}%.`);
-                return;
+        openInlineEditModal({
+            title: "Ta'sischini tahrirlash",
+            fields: [
+                { name: "name", label: "Ta'sischi F.I.Sh", type: "text", value: item.name || "" },
+                { name: "percent", label: "Ulush foizi", type: "number", min: 0, value: item.percent || 0 }
+            ],
+            onSave: (data, message) => {
+                const nextPercent = Number(data.percent || 0);
+                const otherPercent = state.founders
+                    .filter((founder) => founder.id !== item.id)
+                    .reduce((total, founder) => total + Number(founder.percent || 0), 0);
+                if (otherPercent + nextPercent > 100) {
+                    message.textContent = `Ta'sischilar ulushi 100% dan oshmasligi kerak. Qoldiq: ${100 - otherPercent}%.`;
+                    return false;
+                }
+                item.name = data.name;
+                item.percent = nextPercent;
+                saveState();
+                renderApp();
             }
-            item.percent = nextPercent;
-        }
-    }
-    if (collection === "services") {
-        const name = prompt("Avtobuschi F.I.Sh ni tahrirlang", item.driverName || item.title || "");
-        if (name !== null) item.driverName = name.trim();
-        const job = prompt("Lavozimini tahrirlang", item.job || "haydovchi");
-        if (job !== null) item.job = job.trim();
-        const salary = prompt("Beriladigan oylikni tahrirlang", item.salary || 0);
-        if (salary !== null) item.salary = Number(salary || 0);
-        const advance = prompt("Berilgan avansni tahrirlang", item.advance || 0);
-        if (advance !== null) item.advance = Number(advance || 0);
-        const advanceType = prompt("Avans turini tahrirlang: Naqd pul, Click", item.advanceType || "Naqd pul");
-        if (advanceType !== null) item.advanceType = normalizeServiceAdvanceType(advanceType);
+        });
+        return;
     }
     if (collection === "staffSalaries") {
-        const salary = prompt("Oylik summasini tahrirlang", item.salary || 0);
-        if (salary !== null) item.salary = Number(salary || 0);
-        const fine = prompt("Jarimani tahrirlang", item.fine || 0);
-        if (fine !== null) item.fine = Number(fine || 0);
         const totals = staffSalaryTotals(item);
-        const advance = prompt("Berilgan avansni tahrirlang", totals.advanceTotal || 0);
-        if (advance !== null) item.advance = Number(advance || 0);
-        const advanceType = prompt("Avans turini tahrirlang: Bank orqali, Click, Naqd pul", item.advanceType || "Bank orqali");
-        if (advanceType !== null) item.advanceType = normalizeAdvanceType(advanceType);
-        item.advanceBank = 0;
-        item.advanceClick = 0;
-        item.advanceCash = 0;
+        openInlineEditModal({
+            title: "Tex xodim oyligini tahrirlash",
+            fields: [
+                { name: "name", label: "Tex xodim F.I.Sh", type: "text", value: item.name || "" },
+                { name: "job", label: "Lavozimi", type: "text", value: item.job || "" },
+                { name: "salary", label: "Oylik", type: "number", min: 0, value: item.salary || 0 },
+                { name: "fine", label: "Jarima", type: "number", min: 0, value: item.fine || 0 },
+                { name: "advance", label: "Berilgan avans", type: "number", min: 0, value: totals.advanceTotal || 0 },
+                { name: "advanceType", label: "Avans turi", type: "select", value: item.advanceType || "Bank orqali", options: ["Bank orqali", "Click", "Naqd pul"] }
+            ],
+            onSave: (data) => {
+                item.name = data.name;
+                item.job = data.job;
+                item.salary = Number(data.salary || 0);
+                item.fine = Number(data.fine || 0);
+                item.advance = Number(data.advance || 0);
+                item.advanceType = normalizeAdvanceType(data.advanceType);
+                item.advanceBank = 0;
+                item.advanceClick = 0;
+                item.advanceCash = 0;
+                saveState();
+                renderApp();
+            }
+        });
     }
-
-    saveState();
-    renderApp();
 }
 
 function removeItem(collection, id) {
-    if (!confirm("Bu ma'lumot o'chirilsinmi?")) return;
-    state[collection] = state[collection].filter((item) => item.id !== id);
-    saveState();
-    renderApp();
+    openInlineEditModal({
+        title: "Ma'lumotni o'chirish",
+        description: "Ushbu yozuv o'chirilsinmi?",
+        fields: [],
+        onSave: () => {
+            state[collection] = state[collection].filter((item) => item.id !== id);
+            saveState();
+            renderApp();
+        }
+    });
 }
 
 function calculateStats() {
@@ -1757,6 +2014,7 @@ function normalizeState(base = {}) {
         salaries: Array.isArray(base.salaries) ? base.salaries : [],
         tutors: Array.isArray(base.tutors) ? base.tutors : [],
         founders: Array.isArray(base.founders) ? base.founders : [],
+        pendingExpenses: Array.isArray(base.pendingExpenses) ? base.pendingExpenses : [],
         finance: Array.isArray(base.finance) ? base.finance.map((item) => ({
             quantity: "",
             expenseDate: String(item.createdAt || "").slice(0, 10),
@@ -1831,6 +2089,42 @@ function renderBarChart(selector, items, total) {
     });
 }
 
+function renderIncomeChart(selector, items, total) {
+    const chart = document.querySelector(selector);
+    if (!chart) return;
+
+    const maxValue = Math.max(...items.map((item) => Number(item.value || 0)), 1);
+    let currentPercent = 0;
+    const segments = items.map((item) => {
+        const percent = total > 0 ? (Number(item.value || 0) / total) * 100 : 0;
+        const start = currentPercent;
+        currentPercent += percent;
+        return `${item.color} ${start}% ${currentPercent}%`;
+    }).join(", ");
+
+    chart.innerHTML = `
+        <div class="income-chart-layout">
+            <div class="donut-chart" style="background: conic-gradient(${total > 0 ? segments : "#243653 0 100%"});">
+                <span>${formatMoney(total)}<small>so'm</small></span>
+            </div>
+            <div class="income-bars"></div>
+        </div>
+    `;
+
+    const bars = chart.querySelector(".income-bars");
+    items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "chart-row";
+        const width = total > 0 ? Math.max((Number(item.value || 0) / maxValue) * 100, 6) : 6;
+        row.innerHTML = `
+            <span><i class="legend-dot" style="background:${item.color}"></i>${escapeHtml(item.label)}</span>
+            <div class="chart-track"><i style="width: ${width}%; background:${item.color}"></i></div>
+            <strong>${formatMoney(item.value)} so'm</strong>
+        `;
+        bars.append(row);
+    });
+}
+
 function value(selector) {
     const element = document.querySelector(selector);
     return element ? String(element.value || "").trim() : "";
@@ -1902,7 +2196,6 @@ function todayFinanceStats() {
 function renderFeeSettings() {
     setValue("#smallClassFee", state.settings.smallClassFee || "");
     setValue("#bigClassFee", state.settings.bigClassFee || "");
-    setValue("#defaultDormitoryFee", state.settings.dormitoryFee || "");
 }
 
 function salaryReportTotals(item = {}) {
