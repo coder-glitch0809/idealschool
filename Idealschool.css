@@ -104,6 +104,7 @@ button.danger {
 
 .app-view.is-active-view.metrics,
 .app-view.is-active-view.dashboard-grid,
+.app-view.is-active-view.dashboard-monitor,
 .app-view.is-active-view.section-row,
 .view-group:not(.group-hidden) {
     display: grid !important;
@@ -500,6 +501,7 @@ body.dark-theme button.danger {
 
 .metrics,
 .dashboard-grid,
+.dashboard-monitor,
 .section-row {
     display: grid;
     gap: 18px;
@@ -509,26 +511,76 @@ body.dark-theme button.danger {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.dashboard-monitor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .metrics article,
 .panel {
-    border: 1px solid rgba(255, 255, 255, 0.74);
+    border: 1px solid rgba(148, 163, 184, 0.16);
     border-radius: 18px;
-    background:
-        linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
-        url("photo_2025-08-11_13-29-10.jpg") right 22px top 18px / 150px auto no-repeat,
-        var(--surface);
-    backdrop-filter: blur(18px);
-    box-shadow: 0 15px 35px rgba(24, 52, 97, 0.1);
+    background: var(--surface);
+    box-shadow: 0 15px 35px rgba(24, 52, 97, 0.08);
+}
+
+.chart-panel {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+}
+
+.chart-row {
+    display: grid;
+    grid-template-columns: 78px minmax(130px, 1fr) minmax(120px, auto);
+    gap: 12px;
+    align-items: center;
+}
+
+.chart-row span {
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.chart-row strong {
+    font-size: 0.95rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.chart-track {
+    min-height: 16px;
+    border-radius: 999px;
+    background: rgba(39, 100, 231, 0.12);
+    overflow: hidden;
+}
+
+.chart-track i {
+    display: block;
+    min-height: 16px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--blue), var(--cyan));
+}
+
+.percent-meter {
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(39, 100, 231, 0.14);
+    margin: 12px 0 8px;
+    overflow: hidden;
+}
+
+.percent-meter span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
 }
 
 body.dark-theme .metrics article,
 body.dark-theme .panel {
-    border-color: rgba(128, 153, 190, 0.22);
-    background:
-        linear-gradient(rgba(20, 28, 45, 0.9), rgba(20, 28, 45, 0.9)),
-        url("photo_2025-08-11_13-29-10.jpg") right 22px top 18px / 150px auto no-repeat,
-        var(--surface);
+    border-color: rgba(148, 163, 184, 0.25);
+    background: var(--surface);
 }
+
 
 .metrics article {
     padding: 20px;
@@ -782,6 +834,97 @@ body.dark-theme .record-list:empty::before {
     padding: 0 12px;
 }
 
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 18px 0 0 0;
+}
+
+.visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(15, 23, 42, 0.65);
+    display: grid;
+    place-items: center;
+    padding: 18px;
+}
+
+.modal-overlay.is-hidden {
+    display: none;
+}
+
+.modal-panel {
+    width: min(720px, 100%);
+    background: var(--surface);
+    border-radius: 18px;
+    box-shadow: 0 22px 80px rgba(15, 23, 42, 0.24);
+    padding: 24px;
+    max-height: 90vh;
+    overflow: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.modal-description {
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.modal-close {
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 1.75rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-form {
+    display: grid;
+    gap: 14px;
+}
+
+.modal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.modal-form label {
+    display: grid;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    grid-column: 1 / -1;
+    margin-top: 8px;
+}
+
 .table-wrap {
     margin-top: 18px;
     overflow-x: auto;
@@ -804,23 +947,36 @@ table {
 }
 
 .report-table {
-    border: 1px solid #1f2937;
+    border-collapse: collapse;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #ffffff;
 }
 
 .report-table th,
 .report-table td {
-    border: 1px solid #1f2937;
-    color: #111827;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    color: #0f172a;
 }
 
 .report-table th {
-    background: #e7f1fb;
-    font-size: 0.84rem;
+    background: #f8fafc;
+    font-size: 0.85rem;
     text-align: center;
+    color: #0f172a;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .report-table td {
-    background: rgba(255, 255, 255, 0.96);
+    background: #ffffff;
+    font-weight: 500;
+    color: #1f2937;
+}
+
+.report-table tbody tr:nth-child(even) td {
+    background: #f8fafc;
 }
 
 body.dark-theme .report-table th {
@@ -894,6 +1050,7 @@ body.dark-theme tbody tr:hover {
 
     .metrics,
     .dashboard-grid,
+    .dashboard-monitor,
     .section-row,
     .finance-entry-grid {
         grid-template-columns: 1fr;
@@ -901,6 +1058,10 @@ body.dark-theme tbody tr:hover {
 
     .wide-form {
         grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    }
+
+    .modal-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -927,6 +1088,7 @@ body.dark-theme tbody tr:hover {
     .main-nav,
     .metrics,
     .dashboard-grid,
+    .dashboard-monitor,
     .section-row,
     .finance-entry-grid,
     .wide-form {
@@ -940,6 +1102,14 @@ body.dark-theme tbody tr:hover {
 
     .main-nav a {
         padding: 12px;
+    }
+
+    .chart-row {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-row strong {
+        text-align: left;
     }
 
     .hero {

@@ -47,12 +47,15 @@
 
             <nav class="main-nav" aria-label="Platforma bo'limlari">
                 <a class="active" href="#dashboard">Dashboard</a>
+                <a href="#zauchPanel">Zauch</a>
                 <a href="#zauch">O'qituvchilar oyligi</a>
                 <a href="#staff">Tex xodimlar</a>
                 <a href="#buses">Avtobus xizmati</a>
-                <a href="#teachers">O'qituvchilar</a>
-                <a href="#monthlyPayments">Oylik to'lovlar</a>
+                <a href="#students">O'quvchilar</a>
+                <a href="#monthlyPayments">Moliya</a>
                 <a href="#expenses">Rasxodlar</a>
+                <a href="#roles">Rollar</a>
+                <a href="#founders">Ta'sischilar</a>
             </nav>
 
             <div class="sidebar-panel is-collapsed" id="sidebarPanel">
@@ -105,6 +108,29 @@
                 </article>
             </section>
 
+            <section class="dashboard-monitor app-view is-active-view" data-view="dashboard" aria-label="Kunlik moliyaviy monitoring">
+                <article class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Kunlik monitoring</p>
+                            <h2>Tushim diagrammasi</h2>
+                        </div>
+                        <span class="status-pill green" id="dailyIncomeBadge">0 so'm</span>
+                    </div>
+                    <div class="chart-panel" id="dailyIncomeChart"></div>
+                </article>
+                <article class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Kunlik monitoring</p>
+                            <h2>Rasxod diagrammasi</h2>
+                        </div>
+                        <span class="status-pill" id="dailyExpenseBadge">0 so'm</span>
+                    </div>
+                    <div class="chart-panel" id="dailyExpenseChart"></div>
+                </article>
+            </section>
+
             <section class="dashboard-grid finance-view app-view" id="payments" data-view="payments">
                 <article class="panel animated-panel">
                     <div class="panel-head">
@@ -134,7 +160,7 @@
                         </label>
                         <label>
                             Sinf
-                            <input id="studentClass" type="text" placeholder="Masalan: 5-A" required>
+                            <input id="studentClass" type="text" list="classOptions" placeholder="Masalan: 5-A yoki 8 tabiiy" required>
                         </label>
                         <label>
                             Ota-ona telefoni
@@ -155,6 +181,7 @@
                         <button type="submit">O'quvchini saqlash</button>
                         <p class="form-message" id="studentMessage" aria-live="polite"></p>
                     </form>
+                    <datalist id="classOptions"></datalist>
                     <div class="table-wrap compact-table">
                         <table>
                             <thead>
@@ -200,6 +227,10 @@
                             <input id="salaryReportAdvance" type="number" min="0" placeholder="0">
                         </label>
                         <label>
+                            Talab bo'lganda berilgan pul (qarz)
+                            <input id="salaryReportLoan" type="number" min="0" placeholder="0">
+                        </label>
+                        <label>
                             Avans turi
                             <select id="salaryReportAdvanceType">
                                 <option value="Bank orqali">Bank orqali</option>
@@ -215,76 +246,63 @@
                         <button type="submit">Hisobotni topshirish</button>
                         <p class="form-message" id="salaryReportMessage" aria-live="polite"></p>
                     </form>
-                    <div class="record-list stacked-list" id="salaryReportList"></div>
+                    <div class="form-actions">
+                        <button type="button" id="exportSalaryReportsBtn">Excelga eksport</button>
+                        <button type="button" class="secondary" id="importSalaryReportsBtn">Exceldan import</button>
+                        <input id="salaryReportFileInput" type="file" accept=".xlsx,.xls,.csv" class="visually-hidden">
+                    </div>
+                    <div class="table-wrap compact-table">
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Ismi sharfi</th>
+                                    <th>Lavozimi</th>
+                                    <th>Sinf</th>
+                                    <th>Jami oylik</th>
+                                    <th>Avans</th>
+                                    <th>Qarz</th>
+                                    <th>Avans turi</th>
+                                    <th>Beriladi</th>
+                                    <th>Amal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salaryReportList"></tbody>
+                        </table>
+                    </div>
                 </article>
             </section>
 
             <section class="panel app-view" id="teachers" data-view="teachers">
                 <div class="panel-head">
                     <div>
-                        <p class="eyebrow">O'qituvchilar</p>
-                        <h2>Ustozlar, sinflar va to'lov nazorati</h2>
+                        <p class="eyebrow">O'quvchilar</p>
+                        <h2>Sinf bo'yicha o'quvchilar va to'lov holati</h2>
                     </div>
-                    <span class="status-pill blue">Sinf rahbarlar</span>
+                    <span class="status-pill blue">To'lov nazorati</span>
                 </div>
-                <form class="wide-form" id="teacherForm">
+                <form class="wide-form" id="studentClassFilterForm">
                     <label>
-                        O'qituvchi F.I.Sh
-                        <input id="teacherFullName" type="text" required>
+                        Sinf tanlang
+                        <select id="studentClassFilter"></select>
                     </label>
-                    <label>
-                        Login
-                        <input id="teacherLogin" type="text" required>
-                    </label>
-                    <label>
-                        Parol
-                        <input id="teacherPassword" type="text" required>
-                    </label>
-                    <label>
-                        Fan
-                        <input id="teacherSubject" type="text" placeholder="Masalan: Matematika" required>
-                    </label>
-                    <label>
-                        Biriktirilgan sinf
-                        <input id="teacherClass" type="text" placeholder="Masalan: 5-A" required>
-                    </label>
-                    <button type="submit">O'qituvchi qo'shish</button>
-                    <p class="form-message" id="teacherMessage" aria-live="polite"></p>
                 </form>
                 <div class="table-wrap compact-table">
                     <table class="report-table">
                         <thead>
                             <tr>
-                                <th rowspan="2">F.I.Sh</th>
-                                <th rowspan="2">Lavozimi</th>
-                                <th rowspan="2">Jami oylik maosh</th>
-                                <th rowspan="2">Jarima</th>
-                                <th colspan="3">Avans</th>
-                                <th rowspan="2">Beriladi</th>
-                                <th rowspan="2">Sinf</th>
-                            </tr>
-                            <tr>
-                                <th>Bank orqali</th>
-                                <th>Click</th>
-                                <th>Naqd</th>
-                            </tr>
-                        </thead>
-                        <tbody id="teacherSalaryTable"></tbody>
-                    </table>
-                </div>
-                <div class="table-wrap compact-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>O'qituvchi</th>
+                                <th>No</th>
+                                <th>F.I.Sh</th>
                                 <th>Sinf</th>
-                                <th>O'quvchi</th>
+                                <th>Telefon</th>
+                                <th>Oylik</th>
                                 <th>To'langan</th>
                                 <th>Qolgan</th>
-                                <th>Aloqa</th>
+                                <th>Yotoqxona</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
-                        <tbody id="teacherFinanceTable"></tbody>
+                        <tbody id="studentByClassTable"></tbody>
                     </table>
                 </div>
             </section>
@@ -403,16 +421,19 @@
                     <label>
                         Rol
                         <select id="userRole" required>
-                            <option value="teacher">O'qituvchi</option>
-                            <option value="zauch">Zauch</option>
-                            <option value="admin">Admin</option>
-                            <option value="superadmin">Superadmin</option>
                             <option value="accountant">Bugalter</option>
+                            <option value="zauch">Zauch</option>
+                            <option value="teacher">O'qituvchi</option>
+                            <option value="warehouse">Zap xoz</option>
                         </select>
                     </label>
                     <label>
+                        Javobgar bo'lim
+                        <select id="userResponsibility" required></select>
+                    </label>
+                    <label>
                         Biriktirilgan sinf
-                        <input id="userClass" type="text" placeholder="O'qituvchi uchun: 5-A">
+                        <input id="userClass" type="text" list="classOptions" placeholder="O'qituvchi uchun: 5-A">
                     </label>
                     <button type="submit">Xodimni saqlash</button>
                     <p class="form-message" id="userMessage" aria-live="polite"></p>
@@ -424,6 +445,7 @@
                                 <th>F.I.Sh</th>
                                 <th>Login</th>
                                 <th>Rol</th>
+                                <th>Javobgar bo'lim</th>
                                 <th>Sinf</th>
                                 <th>Amal</th>
                             </tr>
@@ -433,12 +455,35 @@
                 </div>
             </section>
 
+            <section class="panel app-view" id="zauchPanel" data-view="zauchPanel">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Zauch bo'limi</p>
+                        <h2>Zauchlar nazorati</h2>
+                    </div>
+                    <span class="status-pill blue">Rol orqali boshqariladi</span>
+                </div>
+                <div class="table-wrap compact-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>F.I.Sh</th>
+                                <th>Login</th>
+                                <th>Biriktirilgan sinf</th>
+                                <th>Holati</th>
+                            </tr>
+                        </thead>
+                        <tbody id="zauchTable"></tbody>
+                    </table>
+                </div>
+            </section>
+
             <section class="section-row finance-view view-group group-hidden">
                 <article class="panel animated-panel app-view" id="monthlyPayments" data-view="monthlyPayments">
                     <div class="panel-head">
                         <div>
                             <p class="eyebrow">Moliya</p>
-                            <h2>Oylik to'lovlar</h2>
+                            <h2>Moliya: o'quvchilar to'lovlari</h2>
                         </div>
                     </div>
                     <div class="founder-summary" id="financeTodaySummary"></div>
@@ -471,11 +516,11 @@
                             O'quvchi
                             <select id="paymentStudent" required></select>
                         </label>
-                        <label>
+                        <label class="visually-hidden">
                             To'lashi kerak
                             <input id="paymentRequired" type="number" min="0" placeholder="0" required>
                         </label>
-                        <label>
+                        <label class="visually-hidden">
                             To'lov turi
                             <select id="paymentCategory">
                                 <option value="O'qish to'lovi">O'qish to'lovi</option>
@@ -550,15 +595,15 @@
                     <form id="financeForm" class="wide-form">
                         <label>
                             Rasxod turi
-                            <select id="expenseType">
-                                <option value="Oylik">Oylik</option>
-                                <option value="Ijara">Ijara</option>
-                                <option value="Kommunal">Kommunal</option>
-                                <option value="Oziq-ovqat">Oziq-ovqat</option>
-                                <option value="Transport">Transport</option>
-                                <option value="Ta'mirlash">Ta'mirlash</option>
-                                <option value="Boshqa">Boshqa</option>
-                            </select>
+                            <select id="expenseType"></select>
+                        </label>
+                        <label class="visually-hidden" id="expenseTypeCustomWrap">
+                            Boshqa turni kiriting
+                            <input id="expenseTypeCustom" type="text" placeholder="Masalan: Ofis jihozlari">
+                        </label>
+                        <label class="visually-hidden" id="expenseRecipientWrap">
+                            Kimga berildi (agar oylik bo'lsa)
+                            <select id="expenseRecipient"></select>
                         </label>
                         <label>
                             To'lov usuli
@@ -595,6 +640,8 @@
                                     <th>Maxsulot nomi</th>
                                     <th>Soni</th>
                                     <th>Narxi</th>
+                                    <th>Rasxod turi</th>
+                                    <th>Kimga</th>
                                     <th>To'lov turi</th>
                                     <th>Sanasi</th>
                                     <th>Amal</th>
@@ -622,6 +669,7 @@
                             <input id="founderPercent" type="number" min="0" max="100" placeholder="50" required>
                         </label>
                         <button type="submit">Ta'sischini saqlash</button>
+                        <p class="form-message" id="founderMessage" aria-live="polite"></p>
                     </form>
                     <div class="founder-summary" id="founderSummary"></div>
                     <div class="record-list" id="founderList"></div>
@@ -730,11 +778,185 @@
                         </label>
                         <button type="submit">Avtobuschini saqlash</button>
                     </form>
+                    <div class="table-wrap compact-table">
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>F.I.Sh</th>
+                                    <th>Lavozimi</th>
+                                    <th>Oylik</th>
+                                    <th>Avans</th>
+                                    <th>Avans turi</th>
+                                    <th>Amal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="serviceTable"></tbody>
+                        </table>
+                    </div>
                 </article>
             </section>
         </main>
     </div>
 
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <div class="modal-overlay is-hidden" id="editSalaryModal" role="dialog" aria-modal="true" aria-labelledby="editSalaryModalTitle">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div>
+                    <h2 id="editSalaryModalTitle">Oylik hisobotini tahrirlash</h2>
+                    <p class="modal-description">Ushbu yerda hisobotni zamonaviy tarzda tahrirlashingiz mumkin.</p>
+                </div>
+                <button type="button" class="modal-close" id="closeSalaryModalBtn" aria-label="Yopish">×</button>
+            </div>
+            <form id="salaryReportEditForm" class="modal-form">
+                <input id="salaryReportEditId" type="hidden">
+                <label>
+                    Ismi sharfi
+                    <input id="salaryReportEditFullName" type="text" required>
+                </label>
+                <label>
+                    Lavozimi
+                    <input id="salaryReportEditPosition" type="text" required>
+                </label>
+                <label>
+                    Sinf
+                    <input id="salaryReportEditClass" type="text">
+                </label>
+                <label>
+                    Jami oylik maoshi
+                    <input id="salaryReportEditSalary" type="number" min="0" required>
+                </label>
+                <label>
+                    Berilgan avans
+                    <input id="salaryReportEditAdvance" type="number" min="0">
+                </label>
+                <label>
+                    Avans turi
+                    <select id="salaryReportEditAdvanceType">
+                        <option value="Bank orqali">Bank orqali</option>
+                        <option value="Click">Click</option>
+                        <option value="Naqd pul">Naqd pul</option>
+                    </select>
+                </label>
+                <label>
+                    To'lov manzili
+                    <input id="salaryReportEditPaymentTarget" type="text" placeholder="Masalan: Bank karta">
+                </label>
+                <label>
+                    Bank kartasi
+                    <input id="salaryReportEditBankCard" type="text" placeholder="Masalan: 8600 1234 5678 9012">
+                </label>
+                <label>
+                    Talab bo'lganda berilgan pul (qarz)
+                    <input id="salaryReportEditLoan" type="number" min="0" placeholder="0">
+                </label>
+                <div class="modal-actions">
+                    <button type="submit">Saqlash</button>
+                    <button type="button" class="secondary" id="cancelSalaryModalBtn">Bekor qilish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="modal-overlay is-hidden" id="editServiceModal" role="dialog" aria-modal="true" aria-labelledby="editServiceModalTitle">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div>
+                    <h2 id="editServiceModalTitle">Avtobus xizmatini tahrirlash</h2>
+                    <p class="modal-description">Avtobuschi ma'lumotlarini zamonaviy oynada tahrirlashingiz mumkin.</p>
+                </div>
+                <button type="button" class="modal-close" id="closeServiceModalBtn" aria-label="Yopish">×</button>
+            </div>
+            <form id="serviceEditForm" class="modal-form">
+                <input id="serviceEditId" type="hidden">
+                <label>
+                    Avtobuschi F.I.Sh
+                    <input id="serviceEditDriverName" type="text" required>
+                </label>
+                <label>
+                    Lavozimi
+                    <input id="serviceEditJob" type="text">
+                </label>
+                <label>
+                    Oylik
+                    <input id="serviceEditSalary" type="number" min="0" required>
+                </label>
+                <label>
+                    Avans
+                    <input id="serviceEditAdvance" type="number" min="0">
+                </label>
+                <label>
+                    Avans turi
+                    <select id="serviceEditAdvanceType">
+                        <option value="Naqd pul">Naqd pul</option>
+                        <option value="Click">Click</option>
+                    </select>
+                </label>
+                <div class="modal-actions">
+                    <button type="submit">Saqlash</button>
+                    <button type="button" class="secondary" id="cancelServiceModalBtn">Bekor qilish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="modal-overlay is-hidden" id="editFinanceModal" role="dialog" aria-modal="true" aria-labelledby="editFinanceModalTitle">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div>
+                    <h2 id="editFinanceModalTitle">Rasxodni tahrirlash</h2>
+                    <p class="modal-description">Rasxod ma'lumotlarini oynadan chiqmasdan tartibli yangilang.</p>
+                </div>
+                <button type="button" class="modal-close" id="closeFinanceModalBtn" aria-label="Yopish">×</button>
+            </div>
+            <form id="financeEditForm" class="modal-form modal-grid">
+                <input id="financeEditId" type="hidden">
+                <label>
+                    Rasxod turi
+                    <select id="financeEditExpenseType">
+                        <option value="Oylik">Oylik</option>
+                        <option value="Kommunal">Kommunal</option>
+                        <option value="Ijara">Ijara</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Oziq-ovqat">Oziq-ovqat</option>
+                        <option value="Ta'mirlash">Ta'mirlash</option>
+                        <option value="Boshqa">Boshqa</option>
+                    </select>
+                </label>
+                <label>
+                    Boshqa turi
+                    <input id="financeEditExpenseTypeCustom" type="text" placeholder="Masalan: Ofis jihozlari">
+                </label>
+                <label>
+                    To'lov usuli
+                    <select id="financeEditMethod">
+                        <option value="Naqd pul">Naqd pul</option>
+                        <option value="Click">Click</option>
+                        <option value="Hisob raqam">Hisob raqam</option>
+                    </select>
+                </label>
+                <label>
+                    Izoh
+                    <input id="financeEditTitle" type="text" required>
+                </label>
+                <label>
+                    Soni
+                    <input id="financeEditQuantity" type="text">
+                </label>
+                <label>
+                    Summa
+                    <input id="financeEditAmount" type="number" min="0" required>
+                </label>
+                <label>
+                    Sana
+                    <input id="financeEditDate" type="date">
+                </label>
+                <div class="modal-actions">
+                    <button type="submit">Saqlash</button>
+                    <button type="button" class="secondary" id="cancelFinanceModalBtn">Bekor qilish</button>
+                </div>
+            </form>
+        </div>
+    </div>
     <script src="app.js"></script>
 </body>
 </html>
