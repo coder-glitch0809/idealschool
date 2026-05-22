@@ -48,10 +48,19 @@ const roleNames = {
 };
 
 const roleResponsibilities = {
+    admin: "Barcha bo'limlar",
     accountant: "Moliya",
     zauch: "Zauch bo'limi",
     teacher: "O'quvchilar",
     warehouse: "Zap xoz"
+};
+
+const responsibilitySections = {
+    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders"],
+    "Moliya": ["monthlyPayments", "expenses"],
+    "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers"],
+    "O'quvchilar": ["students", "teachers"],
+    "Zap xoz": ["staff", "buses"]
 };
 
 const permissions = {
@@ -295,9 +304,9 @@ document.querySelector("#userForm").addEventListener("submit", (event) => {
 
     const login = value("#userLogin");
     const role = value("#userRole");
-    const allowedAssignableRoles = ["accountant", "zauch", "teacher", "warehouse"];
+    const allowedAssignableRoles = ["admin", "accountant", "zauch", "teacher", "warehouse"];
     if (!allowedAssignableRoles.includes(role)) {
-        flash("#userMessage", "Faqat bugalter, zauch, o'qituvchi va zap xoz rollari beriladi.");
+        flash("#userMessage", "Faqat admin, bugalter, zauch, o'qituvchi va zap xoz rollari beriladi.");
         return;
     }
     if (state.users.some((user) => String(user.login || "").toLowerCase() === login.toLowerCase())) {
@@ -695,12 +704,12 @@ function applyPermissions() {
 
     document.querySelectorAll(".main-nav a").forEach((link) => {
         const id = link.getAttribute("href").replace("#", "");
-        const allowed = id === "dashboard" || canViewSection(id);
+        const allowed = canViewSection(id);
         link.classList.toggle("is-hidden", !allowed);
     });
 
-    if (activeView !== "dashboard" && !canViewSection(activeView)) {
-        setActiveView("dashboard");
+    if (!canViewSection(activeView)) {
+        setActiveView(firstAllowedView());
     }
 }
 
@@ -1145,7 +1154,7 @@ function renderUsers() {
     if (!table) return;
 
     table.innerHTML = "";
-    state.users.filter((user) => ["accountant", "zauch", "teacher", "warehouse"].includes(user.role)).forEach((user) => {
+    state.users.filter((user) => ["admin", "accountant", "zauch", "teacher", "warehouse"].includes(user.role)).forEach((user) => {
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>${escapeHtml(user.fullName)}</td>
@@ -1297,7 +1306,7 @@ function renderExpenseReminders() {
     const count = document.querySelector("#expenseReminderCount");
     if (!section || !list || !count) return;
 
-    const allowed = currentUser?.role === "superadmin";
+    const allowed = currentUser?.role === "superadmin" || currentUser?.role === "admin";
     section.classList.toggle("is-hidden", !allowed);
     list.innerHTML = "";
     count.textContent = `${state.pendingExpenses.length} ta`;
@@ -1824,7 +1833,21 @@ function can(permission) {
 }
 
 function canViewSection(id) {
-    return can(sectionPermission(id));
+    if (!currentUser) return id === "dashboard";
+    if (id === "dashboard") return currentUser.role === "superadmin" || currentUser.role === "admin";
+    if (currentUser.role === "superadmin" || currentUser.role === "admin") return true;
+
+    const responsibility = currentUser.responsibility || roleResponsibilities[currentUser.role] || "";
+    const allowedSections = responsibilitySections[responsibility] || [];
+    return allowedSections.includes(id);
+}
+
+function firstAllowedView() {
+    if (!currentUser) return "dashboard";
+    if (currentUser.role === "superadmin" || currentUser.role === "admin") return "dashboard";
+
+    const responsibility = currentUser.responsibility || roleResponsibilities[currentUser.role] || "";
+    return (responsibilitySections[responsibility] || [])[0] || "students";
 }
 
 function sectionPermission(id) {
