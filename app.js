@@ -56,20 +56,20 @@ const roleResponsibilities = {
 };
 
 const responsibilitySections = {
-    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders"],
+    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders"],
     "Moliya": ["monthlyPayments", "expenses"],
-    "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers"],
-    "O'quvchilar": ["students", "teachers"],
+    "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers", "attendance"],
+    "O'quvchilar": ["students", "teachers", "attendance"],
     "Zap xoz": ["staff", "buses"]
 };
 
 const permissions = {
-    superadmin: ["students", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
-    admin: ["students", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
-    zauch: ["students", "salaryReports", "teachers", "salaries", "tutors"],
+    superadmin: ["students", "attendance", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
+    admin: ["students", "attendance", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
+    zauch: ["students", "attendance", "salaryReports", "teachers", "salaries", "tutors"],
     accountant: ["finance"],
     warehouse: ["services"],
-    teacher: ["students"],
+    teacher: ["students", "attendance"],
     staff: ["services"]
 };
 
@@ -107,6 +107,7 @@ const editFinanceModal = document.querySelector("#editFinanceModal");
 const financeEditForm = document.querySelector("#financeEditForm");
 const closeFinanceModalBtn = document.querySelector("#closeFinanceModalBtn");
 const cancelFinanceModalBtn = document.querySelector("#cancelFinanceModalBtn");
+const securityWatermark = document.querySelector("#securityWatermark");
 
 setValue("#paymentMonth", currentMonth);
 setValue("#salaryMonth", currentMonth);
@@ -115,10 +116,12 @@ setValue("#staffMonth", currentMonth);
 setValue("#paymentDate", currentDate);
 setValue("#expenseDate", currentDate);
 setValue("#pendingExpenseDate", currentDate);
+setValue("#attendanceDate", currentDate);
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
 initFirebaseBackend();
 loadStateFromServer();
 setupNavigation();
+setupSecurityControls();
 setActiveView("dashboard");
 
 loginForm.addEventListener("submit", (event) => {
@@ -133,6 +136,7 @@ loginForm.addEventListener("submit", (event) => {
     }
 
     currentUser = user;
+    updateSecurityWatermark();
     loginMessage.textContent = "";
     loginScreen.classList.add("is-hidden");
     platform.classList.remove("is-hidden");
@@ -142,6 +146,7 @@ loginForm.addEventListener("submit", (event) => {
 
 logoutBtn.addEventListener("click", () => {
     currentUser = null;
+    updateSecurityWatermark();
     platform.classList.add("is-hidden");
     loginScreen.classList.remove("is-hidden");
     loginForm.reset();
@@ -207,6 +212,43 @@ document.querySelector("#studentForm").addEventListener("submit", (event) => {
     });
 
     saveAndRender(event.target, "#studentMessage", "O'quvchi saqlandi.");
+});
+
+document.querySelector("#attendanceForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!can("attendance")) return;
+
+    const date = value("#attendanceDate") || currentDate;
+    const className = currentUser.role === "teacher" ? currentUser.assignedClass : value("#attendanceClass");
+    const rows = [...document.querySelectorAll("#attendanceTable tr[data-student-id]")];
+    if (!className || !rows.length) {
+        flash("#attendanceMessage", "Davomat uchun sinf va o'quvchilar mavjud emas.");
+        return;
+    }
+
+    rows.forEach((row) => {
+        const studentId = row.dataset.studentId;
+        const student = state.students.find((item) => item.id === studentId);
+        if (!student) return;
+        const existing = state.attendance.find((item) => item.date === date && item.studentId === studentId);
+        const record = {
+            id: existing?.id || createId("attendance"),
+            date,
+            className,
+            studentId,
+            studentName: student.name,
+            status: row.querySelector("select").value,
+            teacherId: currentUser.id,
+            teacherName: currentUser.fullName,
+            updatedAt: new Date().toISOString()
+        };
+        if (existing) Object.assign(existing, record);
+        else state.attendance.push(record);
+    });
+
+    saveState();
+    flash("#attendanceMessage", "Davomat saqlandi.");
+    renderApp();
 });
 
 document.querySelector("#paymentForm").addEventListener("submit", (event) => {
@@ -524,6 +566,8 @@ document.querySelector("#dormitoryPaymentButton")?.addEventListener("click", () 
 });
 document.querySelector("#financeClassFilter")?.addEventListener("change", renderFinancePaymentsTable);
 document.querySelector("#studentClassFilter")?.addEventListener("change", renderStudentByClassSection);
+document.querySelector("#attendanceClass")?.addEventListener("change", renderAttendance);
+document.querySelector("#attendanceDate")?.addEventListener("change", renderAttendance);
 document.querySelector("#userRole")?.addEventListener("change", renderRoleResponsibilityOptions);
 document.querySelector("#expenseSalaryCheckbox")?.addEventListener("change", toggleExpenseSalaryFields);
 document.querySelector("#advanceExpenseButton")?.addEventListener("click", () => {
@@ -541,6 +585,7 @@ document.querySelector("#advanceExpenseButton")?.addEventListener("click", () =>
 function renderApp() {
     const stats = calculateStats();
     const roleText = currentUser ? roleNames[currentUser.role] || currentUser.role : "Guest";
+    updateSecurityWatermark();
 
     document.querySelector("#welcomeTitle").textContent = `${roleText} dashboard`;
     document.querySelector("#roleChip").textContent = roleText;
@@ -570,6 +615,8 @@ function renderApp() {
     renderStudents();
     renderStudentClassFilter();
     renderStudentByClassSection();
+    renderAttendanceClassOptions();
+    renderAttendance();
     renderSalaryReports();
     renderSalaryReportSummary();
     renderTeacherSalarySheets();
@@ -581,6 +628,7 @@ function renderApp() {
     renderFinance();
     renderPendingExpenses();
     renderExpenseReminders();
+    renderAttendanceReminders();
     renderDashboardMonitoring();
     renderFinancePaymentsTable();
     renderFounders();
@@ -677,6 +725,7 @@ function setActiveView(viewName) {
 
 function applyPermissions() {
     toggleForm("#studentForm", can("students"));
+    toggleForm("#attendanceForm", can("attendance"));
     toggleForm("#paymentForm", can("finance"));
     toggleForm("#salaryReportForm", can("salaryReports"));
     toggleForm("#teacherForm", can("teachers"));
@@ -689,7 +738,7 @@ function applyPermissions() {
     toggleForm("#serviceForm", can("services"));
     toggleForm("#staffSalaryForm", can("services"));
 
-    const sectionIds = ["students", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses"];
+    const sectionIds = ["students", "attendance", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses"];
     sectionIds.forEach((id) => {
         const element = document.querySelector(`#${id}`);
         if (!element) return;
@@ -1145,6 +1194,52 @@ function renderStudentByClassSection() {
     updateTableWrapVisibility(table);
 }
 
+function renderAttendanceClassOptions() {
+    const select = document.querySelector("#attendanceClass");
+    if (!select) return;
+
+    const previous = select.value;
+    const classes = currentUser.role === "teacher"
+        ? [currentUser.assignedClass].filter(Boolean)
+        : visibleClassNames();
+    select.innerHTML = "";
+    classes.forEach((className) => select.append(new Option(className, className)));
+    if (classes.includes(previous)) select.value = previous;
+    select.disabled = currentUser.role === "teacher";
+}
+
+function renderAttendance() {
+    const table = document.querySelector("#attendanceTable");
+    const badge = document.querySelector("#attendanceClassBadge");
+    if (!table || !badge) return;
+
+    const className = currentUser.role === "teacher" ? currentUser.assignedClass : value("#attendanceClass");
+    const date = value("#attendanceDate") || currentDate;
+    const students = getVisibleStudents().filter((student) => student.className === className);
+    badge.textContent = className || "Sinf tanlanmagan";
+    table.innerHTML = "";
+
+    students.forEach((student, index) => {
+        const saved = state.attendance.find((item) => item.date === date && item.studentId === student.id);
+        const row = document.createElement("tr");
+        row.dataset.studentId = student.id;
+        row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${escapeHtml(student.name)}</td>
+            <td>${escapeHtml(student.className || "-")}</td>
+            <td>
+                <select aria-label="${escapeHtml(student.name)} davomati">
+                    <option value="Kelgan"${saved?.status === "Kelgan" ? " selected" : ""}>Kelgan</option>
+                    <option value="Kelmagan"${saved?.status === "Kelmagan" ? " selected" : ""}>Kelmagan</option>
+                    <option value="Sababli"${saved?.status === "Sababli" ? " selected" : ""}>Sababli</option>
+                </select>
+            </td>
+        `;
+        table.append(row);
+    });
+    updateTableWrapVisibility(table);
+}
+
 function renderUsers() {
     const table = document.querySelector("#usersTable");
     if (!table) return;
@@ -1356,6 +1451,35 @@ function removePendingExpense(id) {
     state.pendingExpenses = state.pendingExpenses.filter((entry) => entry.id !== id);
     saveState();
     renderApp();
+}
+
+function renderAttendanceReminders() {
+    const section = document.querySelector("#attendanceReminders");
+    const list = document.querySelector("#attendanceReminderList");
+    const count = document.querySelector("#attendanceReminderCount");
+    if (!section || !list || !count) return;
+
+    const allowed = currentUser?.role === "superadmin" || currentUser?.role === "admin";
+    section.classList.toggle("is-hidden", !allowed);
+    list.innerHTML = "";
+    if (!allowed) return;
+
+    const missing = teachers().filter((teacher) => {
+        if (!teacher.assignedClass) return false;
+        return !state.attendance.some((item) => item.date === currentDate && item.className === teacher.assignedClass);
+    });
+    count.textContent = `${missing.length} ta`;
+
+    missing.forEach((teacher) => {
+        const item = document.createElement("div");
+        item.className = "record-item";
+        item.innerHTML = `
+            <strong>${escapeHtml(teacher.assignedClass)} sinf - davomat olinmagan</strong>
+            <span>Sinf rahbar: ${escapeHtml(teacher.fullName || "-")}</span>
+            <small>Bugungi sana: ${escapeHtml(currentDate)}</small>
+        `;
+        list.append(item);
+    });
 }
 
 function renderFounders() {
@@ -1855,6 +1979,7 @@ function sectionPermission(id) {
         payments: "payments",
         monthlyPayments: "finance",
         expenses: "finance",
+        attendance: "attendance",
         staff: "services",
         buses: "services",
         teachers: currentUser?.role === "teacher" ? "students" : "teachers"
@@ -2032,6 +2157,7 @@ function normalizeState(base = {}) {
             dormitory: false,
             ...payment
         })) : [],
+        attendance: Array.isArray(base.attendance) ? base.attendance : [],
         salaries: Array.isArray(base.salaries) ? base.salaries : [],
         tutors: Array.isArray(base.tutors) ? base.tutors : [],
         founders: Array.isArray(base.founders) ? base.founders : [],
@@ -2308,6 +2434,62 @@ function closeSidebar() {
     platform.classList.remove("sidebar-open");
     menuToggle.setAttribute("aria-expanded", "false");
     menuToggle.setAttribute("aria-label", "Menyuni ochish");
+}
+
+function setupSecurityControls() {
+    document.addEventListener("contextmenu", (event) => {
+        if (!platform.classList.contains("is-hidden")) {
+            event.preventDefault();
+            showSecurityNotice("O'ng tugma o'chirilgan.");
+        }
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (platform.classList.contains("is-hidden")) return;
+
+        const key = event.key.toLowerCase();
+        const blocksDeveloperTools = event.key === "F12" ||
+            (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key)) ||
+            (event.ctrlKey && ["u", "s", "p"].includes(key));
+        if (blocksDeveloperTools) {
+            event.preventDefault();
+            showSecurityNotice("Bu amal platformada cheklangan.");
+            return;
+        }
+
+        if (event.key === "PrintScreen") {
+            showSecurityNotice("Skrinshot olish taqiqlangan. Watermark faol.");
+        }
+    });
+}
+
+function updateSecurityWatermark() {
+    if (!securityWatermark) return;
+    if (!currentUser) {
+        securityWatermark.innerHTML = "";
+        return;
+    }
+
+    const timestamp = new Intl.DateTimeFormat("uz-UZ", {
+        dateStyle: "short",
+        timeStyle: "short"
+    }).format(new Date());
+    const mark = `${currentUser.login} | IDEAL SCHOOL | ${timestamp}`;
+    securityWatermark.innerHTML = Array.from({ length: 24 }, () => `<span>${escapeHtml(mark)}</span>`).join("");
+}
+
+function showSecurityNotice(message) {
+    let notice = document.querySelector("#securityNotice");
+    if (!notice) {
+        notice = document.createElement("div");
+        notice.id = "securityNotice";
+        notice.className = "security-notice";
+        document.body.append(notice);
+    }
+    notice.textContent = message;
+    notice.classList.add("is-visible");
+    clearTimeout(showSecurityNotice.timeout);
+    showSecurityNotice.timeout = setTimeout(() => notice.classList.remove("is-visible"), 1800);
 }
 
 function latestSalaryReportForTeacher(teacherId) {

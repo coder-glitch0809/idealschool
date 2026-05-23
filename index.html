@@ -30,6 +30,11 @@
     </section>
 
     <div class="platform is-hidden" id="platform">
+        <div class="security-watermark" id="securityWatermark" aria-hidden="true"></div>
+        <div class="print-blocker" aria-hidden="true">
+            <strong>IDEAL SCHOOL</strong>
+            <span>Chop etish va eksportga ruxsat berilmagan.</span>
+        </div>
         <button class="menu-toggle" type="button" id="menuToggle" aria-label="Menyuni ochish" aria-expanded="false">
             <span></span>
             <span></span>
@@ -52,6 +57,7 @@
                 <a href="#staff">Tex xodimlar</a>
                 <a href="#buses">Avtobus xizmati</a>
                 <a href="#students">O'quvchilar</a>
+                <a href="#attendance">Davomat</a>
                 <a href="#monthlyPayments">Moliya</a>
                 <a href="#expenses">Rasxodlar</a>
                 <a href="#roles">Rollar</a>
@@ -140,6 +146,17 @@
                     <span class="status-pill" id="expenseReminderCount">0 ta</span>
                 </div>
                 <div class="record-list" id="expenseReminderList"></div>
+            </section>
+
+            <section class="panel app-view is-active-view" id="attendanceReminders" data-view="dashboard">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Davomat nazorati</p>
+                        <h2>Davomat olinmagan sinflar</h2>
+                    </div>
+                    <span class="status-pill" id="attendanceReminderCount">0 ta</span>
+                </div>
+                <div class="record-list" id="attendanceReminderList"></div>
             </section>
 
             <section class="dashboard-grid finance-view app-view" id="payments" data-view="payments">
@@ -311,6 +328,43 @@
                         <tbody id="studentByClassTable"></tbody>
                     </table>
                 </div>
+            </section>
+
+            <section class="panel app-view" id="attendance" data-view="attendance">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Sinf rahbar nazorati</p>
+                        <h2>Davomat</h2>
+                    </div>
+                    <span class="status-pill blue" id="attendanceClassBadge">Sinf tanlanmagan</span>
+                </div>
+                <form class="wide-form" id="attendanceFilterForm">
+                    <label>
+                        Sana
+                        <input id="attendanceDate" type="date" required>
+                    </label>
+                    <label>
+                        Sinf
+                        <select id="attendanceClass" required></select>
+                    </label>
+                </form>
+                <form id="attendanceForm">
+                    <div class="table-wrap compact-table">
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>O'quvchi F.I.Sh</th>
+                                    <th>Sinf</th>
+                                    <th>Holati</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceTable"></tbody>
+                        </table>
+                    </div>
+                    <button type="submit">Davomatni saqlash</button>
+                    <p class="form-message" id="attendanceMessage" aria-live="polite"></p>
+                </form>
             </section>
 
             <section class="dashboard-grid salary-view app-view" id="salaries" data-view="salaries">
