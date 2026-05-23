@@ -176,28 +176,6 @@ button.danger {
     min-height: 100vh;
 }
 
-.security-watermark {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    pointer-events: none;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(180px, 1fr));
-    gap: 80px 24px;
-    align-content: space-around;
-    overflow: hidden;
-    opacity: 0.13;
-}
-
-.security-watermark span {
-    color: var(--ink);
-    font-size: 0.78rem;
-    font-weight: 800;
-    text-align: center;
-    transform: rotate(-24deg);
-    white-space: nowrap;
-}
-
 .security-notice {
     position: fixed;
     right: 22px;
@@ -556,7 +534,7 @@ body.dark-theme button.danger {
 }
 
 .metrics {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .dashboard-monitor {
@@ -1217,11 +1195,6 @@ body.dark-theme tbody tr:hover {
 
     .main-nav a {
         padding: 12px;
-    }
-
-    .security-watermark {
-        grid-template-columns: repeat(2, minmax(130px, 1fr));
-        gap: 64px 0;
     }
 
     .chart-row {

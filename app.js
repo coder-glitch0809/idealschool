@@ -56,7 +56,7 @@ const roleResponsibilities = {
 };
 
 const responsibilitySections = {
-    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders"],
+    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "archive"],
     "Moliya": ["monthlyPayments", "expenses"],
     "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers", "attendance"],
     "O'quvchilar": ["students", "teachers", "attendance"],
@@ -107,7 +107,6 @@ const editFinanceModal = document.querySelector("#editFinanceModal");
 const financeEditForm = document.querySelector("#financeEditForm");
 const closeFinanceModalBtn = document.querySelector("#closeFinanceModalBtn");
 const cancelFinanceModalBtn = document.querySelector("#cancelFinanceModalBtn");
-const securityWatermark = document.querySelector("#securityWatermark");
 
 setValue("#paymentMonth", currentMonth);
 setValue("#salaryMonth", currentMonth);
@@ -136,7 +135,6 @@ loginForm.addEventListener("submit", (event) => {
     }
 
     currentUser = user;
-    updateSecurityWatermark();
     loginMessage.textContent = "";
     loginScreen.classList.add("is-hidden");
     platform.classList.remove("is-hidden");
@@ -146,7 +144,6 @@ loginForm.addEventListener("submit", (event) => {
 
 logoutBtn.addEventListener("click", () => {
     currentUser = null;
-    updateSecurityWatermark();
     platform.classList.add("is-hidden");
     loginScreen.classList.remove("is-hidden");
     loginForm.reset();
@@ -416,7 +413,8 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
 
     const isSalaryAdvance = document.querySelector("#expenseSalaryCheckbox")?.checked || false;
     const recipientId = isSalaryAdvance && document.querySelector("#expenseRecipient") ? value("#expenseRecipient") : "";
-    const teacher = recipientId ? state.users.find((user) => user.id === recipientId) : null;
+    const teacher = recipientId ? state.users.find((user) => user.id === recipientId && user.role === "teacher") : null;
+    const founder = recipientId ? state.founders.find((item) => item.id === recipientId) : null;
     const expenseTypeResolved = isSalaryAdvance ? "Oldindan avans" : (value("#expenseType") || "Rasxod");
 
     const amount = numberValue("#financeAmount");
@@ -426,7 +424,8 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
         expenseType: expenseTypeResolved,
         recipientId: recipientId,
         salaryAdvance: isSalaryAdvance,
-        recipientName: teacher ? teacher.fullName : "",
+        recipientName: teacher?.fullName || founder?.name || "",
+        recipientType: teacher ? "teacher" : founder ? "founder" : "",
         method: value("#expenseMethod"),
         title: value("#financeTitle"),
         quantity: value("#expenseQuantity"),
@@ -454,6 +453,14 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
             calculatedSalary: 0,
             remainingSalary: 0,
             createdBy: currentUser.fullName
+        });
+    }
+
+    if (isSalaryAdvance && founder) {
+        archiveRecord("founders", "Ta'sischiga avans berildi", {
+            name: founder.name,
+            amount,
+            method: value("#expenseMethod")
         });
     }
 
@@ -585,7 +592,6 @@ document.querySelector("#advanceExpenseButton")?.addEventListener("click", () =>
 function renderApp() {
     const stats = calculateStats();
     const roleText = currentUser ? roleNames[currentUser.role] || currentUser.role : "Guest";
-    updateSecurityWatermark();
 
     document.querySelector("#welcomeTitle").textContent = `${roleText} dashboard`;
     document.querySelector("#roleChip").textContent = roleText;
@@ -598,6 +604,9 @@ function renderApp() {
     document.querySelector("#teacherCount").textContent = teachers().length;
     document.querySelector("#incomeCount").textContent = shortMoney(stats.income);
     document.querySelector("#debtCount").textContent = shortMoney(stats.debt);
+    const attendanceTotals = todayAttendanceTotals();
+    document.querySelector("#presentCount").textContent = attendanceTotals.present;
+    document.querySelector("#absentCount").textContent = attendanceTotals.absent;
     document.querySelector("#assignedClassBadge").textContent = currentUser.assignedClass || "Barcha sinflar";
     if (currentUser.role === "teacher") {
         setValue("#studentClass", currentUser.assignedClass);
@@ -635,6 +644,7 @@ function renderApp() {
     renderServices();
     renderStaffSalaries();
     renderFeeSettings();
+    renderArchive();
     setActiveView(activeView);
 }
 
@@ -674,13 +684,20 @@ function renderExpenseRecipientOptions() {
     const select = document.querySelector('#expenseRecipient');
     if (!select) return;
     select.innerHTML = '';
+    const teacherGroup = document.createElement("optgroup");
+    teacherGroup.label = "O'qituvchilar";
     const users = state.users.filter(u => u.role === 'teacher');
     users.forEach((u) => {
         const opt = document.createElement('option');
         opt.value = u.id;
         opt.textContent = u.fullName + (u.assignedClass ? ` — ${u.assignedClass}` : '');
-        select.append(opt);
+        teacherGroup.append(opt);
     });
+    select.append(teacherGroup);
+    const founderGroup = document.createElement("optgroup");
+    founderGroup.label = "Ta'sischilar";
+    state.founders.forEach((founder) => founderGroup.append(new Option(founder.name, founder.id)));
+    select.append(founderGroup);
     toggleExpenseSalaryFields();
 }
 
@@ -738,7 +755,7 @@ function applyPermissions() {
     toggleForm("#serviceForm", can("services"));
     toggleForm("#staffSalaryForm", can("services"));
 
-    const sectionIds = ["students", "attendance", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses"];
+    const sectionIds = ["students", "attendance", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses", "archive"];
     sectionIds.forEach((id) => {
         const element = document.querySelector(`#${id}`);
         if (!element) return;
@@ -1442,12 +1459,15 @@ function approvePendingExpense(id) {
         approvedBy: currentUser.fullName,
         createdAt: item.createdAt || new Date().toISOString()
     });
+    archiveRecord("pendingExpenses", "Rasxodlarga qo'shildi", item);
     state.pendingExpenses = state.pendingExpenses.filter((entry) => entry.id !== id);
     saveState();
     renderApp();
 }
 
 function removePendingExpense(id) {
+    const item = state.pendingExpenses.find((entry) => entry.id === id);
+    if (item) archiveRecord("pendingExpenses", "Olib tashlandi", item);
     state.pendingExpenses = state.pendingExpenses.filter((entry) => entry.id !== id);
     saveState();
     renderApp();
@@ -1482,6 +1502,48 @@ function renderAttendanceReminders() {
     });
 }
 
+function todayAttendanceTotals() {
+    const records = state.attendance.filter((item) => item.date === currentDate);
+    return {
+        present: records.filter((item) => item.status === "Kelgan").length,
+        absent: records.filter((item) => item.status === "Kelmagan").length
+    };
+}
+
+function archiveRecord(collection, action, item) {
+    state.archive.push({
+        id: createId("archive"),
+        collection,
+        action,
+        data: JSON.parse(JSON.stringify(item || {})),
+        performedBy: currentUser?.fullName || "-",
+        archivedAt: new Date().toISOString()
+    });
+}
+
+function renderArchive() {
+    const table = document.querySelector("#archiveTable");
+    const count = document.querySelector("#archiveCount");
+    if (!table || !count) return;
+
+    table.innerHTML = "";
+    count.textContent = `${state.archive.length} ta`;
+    state.archive.slice().reverse().forEach((entry) => {
+        const description = entry.data.name || entry.data.title || entry.data.studentName ||
+            entry.data.teacherName || entry.data.recipientName || entry.data.fullName || "-";
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${escapeHtml(formatDate(entry.archivedAt))}</td>
+            <td>${escapeHtml(entry.collection || "-")}</td>
+            <td>${escapeHtml(entry.action || "-")}</td>
+            <td>${escapeHtml(description)}</td>
+            <td>${escapeHtml(entry.performedBy || "-")}</td>
+        `;
+        table.append(row);
+    });
+    updateTableWrapVisibility(table);
+}
+
 function renderFounders() {
     const summary = document.querySelector("#founderSummary");
     const list = document.querySelector("#founderList");
@@ -1498,11 +1560,14 @@ function renderFounders() {
     `;
     list.innerHTML = "";
     state.founders.forEach((founder) => {
-        const amount = Math.max(stats.profit, 0) * founder.percent / 100;
+        const amount = stats.profit * founder.percent / 100;
+        const advances = state.finance
+            .filter((item) => item.recipientType === "founder" && item.recipientId === founder.id && item.salaryAdvance)
+            .reduce((total, item) => total + Number(item.amount || 0), 0);
         list.append(recordItem({
             title: founder.name,
             meta: `${founder.percent}% ulush`,
-            note: `Beriladigan pul: ${formatMoney(amount)} so'm`,
+            note: `Ulushi: ${formatMoney(amount)} so'm | Avans olgan: ${formatMoney(advances)} so'm | Qoldiq: ${formatMoney(amount - advances)} so'm`,
             id: founder.id,
             collection: "founders"
         }));
@@ -1860,6 +1925,8 @@ function removeItem(collection, id) {
         description: "Ushbu yozuv o'chirilsinmi?",
         fields: [],
         onSave: () => {
+            const removedItem = state[collection].find((item) => item.id === id);
+            if (removedItem) archiveRecord(collection, "O'chirildi", removedItem);
             state[collection] = state[collection].filter((item) => item.id !== id);
             saveState();
             renderApp();
@@ -1980,6 +2047,7 @@ function sectionPermission(id) {
         monthlyPayments: "finance",
         expenses: "finance",
         attendance: "attendance",
+        archive: "roles",
         staff: "services",
         buses: "services",
         teachers: currentUser?.role === "teacher" ? "students" : "teachers"
@@ -2162,6 +2230,7 @@ function normalizeState(base = {}) {
         tutors: Array.isArray(base.tutors) ? base.tutors : [],
         founders: Array.isArray(base.founders) ? base.founders : [],
         pendingExpenses: Array.isArray(base.pendingExpenses) ? base.pendingExpenses : [],
+        archive: Array.isArray(base.archive) ? base.archive : [],
         finance: Array.isArray(base.finance) ? base.finance.map((item) => ({
             quantity: "",
             expenseDate: String(item.createdAt || "").slice(0, 10),
@@ -2458,24 +2527,9 @@ function setupSecurityControls() {
         }
 
         if (event.key === "PrintScreen") {
-            showSecurityNotice("Skrinshot olish taqiqlangan. Watermark faol.");
+            showSecurityNotice("Skrinshot olish platformada taqiqlangan.");
         }
     });
-}
-
-function updateSecurityWatermark() {
-    if (!securityWatermark) return;
-    if (!currentUser) {
-        securityWatermark.innerHTML = "";
-        return;
-    }
-
-    const timestamp = new Intl.DateTimeFormat("uz-UZ", {
-        dateStyle: "short",
-        timeStyle: "short"
-    }).format(new Date());
-    const mark = `${currentUser.login} | IDEAL SCHOOL | ${timestamp}`;
-    securityWatermark.innerHTML = Array.from({ length: 24 }, () => `<span>${escapeHtml(mark)}</span>`).join("");
 }
 
 function showSecurityNotice(message) {

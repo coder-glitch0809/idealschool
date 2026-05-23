@@ -30,7 +30,6 @@
     </section>
 
     <div class="platform is-hidden" id="platform">
-        <div class="security-watermark" id="securityWatermark" aria-hidden="true"></div>
         <div class="print-blocker" aria-hidden="true">
             <strong>IDEAL SCHOOL</strong>
             <span>Chop etish va eksportga ruxsat berilmagan.</span>
@@ -62,6 +61,7 @@
                 <a href="#expenses">Rasxodlar</a>
                 <a href="#roles">Rollar</a>
                 <a href="#founders">Ta'sischilar</a>
+                <a href="#archive">Arxiv</a>
             </nav>
 
             <div class="sidebar-panel is-collapsed" id="sidebarPanel">
@@ -111,6 +111,16 @@
                     <span>Qarzdorlik</span>
                     <strong id="debtCount">0</strong>
                     <small>Aloqaga chiqish kerak</small>
+                </article>
+                <article>
+                    <span>Bugun kelgan</span>
+                    <strong id="presentCount">0</strong>
+                    <small>Davomat bo'yicha</small>
+                </article>
+                <article>
+                    <span>Bugun kelmagan</span>
+                    <strong id="absentCount">0</strong>
+                    <small>Davomat bo'yicha</small>
                 </article>
             </section>
 
@@ -707,10 +717,10 @@
                         </label>
                         <label class="check-row">
                             <input id="expenseSalaryCheckbox" type="checkbox">
-                            <span>Oylik</span>
+                            <span>Oldindan avans</span>
                         </label>
                         <label class="visually-hidden" id="expenseRecipientWrap">
-                            Ustozni tanlang
+                            Ustoz yoki ta'sischini tanlang
                             <select id="expenseRecipient"></select>
                         </label>
                         <label>
@@ -783,6 +793,30 @@
                     <div class="founder-summary" id="founderSummary"></div>
                     <div class="record-list" id="founderList"></div>
                 </article>
+            </section>
+
+            <section class="panel app-view" id="archive" data-view="archive">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Tarix</p>
+                        <h2>Arxiv</h2>
+                    </div>
+                    <span class="status-pill" id="archiveCount">0 ta</span>
+                </div>
+                <div class="table-wrap compact-table">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Sana</th>
+                                <th>Bo'lim</th>
+                                <th>Amal</th>
+                                <th>Ma'lumot</th>
+                                <th>Bajardi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archiveTable"></tbody>
+                    </table>
+                </div>
             </section>
 
             <section class="section-row view-group group-hidden">
