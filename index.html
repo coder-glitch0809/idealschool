@@ -57,6 +57,7 @@
                 <a href="#buses">Avtobus xizmati</a>
                 <a href="#students">O'quvchilar</a>
                 <a href="#attendance">Davomat</a>
+                <a href="#admissions">Qabul</a>
                 <a href="#monthlyPayments">Moliya</a>
                 <a href="#expenses">Rasxodlar</a>
                 <a href="#roles">Rollar</a>
@@ -120,6 +121,11 @@
                 <article>
                     <span>Bugun kelmagan</span>
                     <strong id="absentCount">0</strong>
+                    <small>Davomat bo'yicha</small>
+                </article>
+                <article>
+                    <span>Sababli kelmagan</span>
+                    <strong id="excusedAbsentCount">0</strong>
                     <small>Davomat bo'yicha</small>
                 </article>
             </section>
@@ -377,6 +383,82 @@
                 </form>
             </section>
 
+            <section class="panel app-view" id="admissions" data-view="admissions">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">2026/2027 o'quv yili</p>
+                        <h2>Qabul</h2>
+                    </div>
+                    <span class="status-pill blue">Kirim va chiqim</span>
+                </div>
+                <div class="metrics admissions-metrics" aria-label="Qabul ko'rsatkichlari">
+                    <article>
+                        <span>Qabul bo'layotgan</span>
+                        <strong id="admissionIncomingCount">0</strong>
+                        <small>Yangi arizalar</small>
+                    </article>
+                    <article>
+                        <span>Qabul qilingan</span>
+                        <strong id="admissionAcceptedCount">0</strong>
+                        <small>2026/2027</small>
+                    </article>
+                    <article>
+                        <span>Chiqib ketgan</span>
+                        <strong id="admissionLeavingCount">0</strong>
+                        <small>Maktabdan chiqqan</small>
+                    </article>
+                </div>
+                <form id="admissionForm" class="wide-form">
+                    <label>
+                        O'quvchi F.I.Sh
+                        <input id="admissionStudentName" type="text" required>
+                    </label>
+                    <label>
+                        Sinf
+                        <input id="admissionClassName" type="text" placeholder="Masalan: 7-A" required>
+                    </label>
+                    <label>
+                        Telefon
+                        <input id="admissionPhone" type="tel">
+                    </label>
+                    <label>
+                        Holati
+                        <select id="admissionStatus">
+                            <option value="Kelyapti">Kelyapti</option>
+                            <option value="Qabul qilindi">Qabul qilindi</option>
+                            <option value="Chiqib ketdi">Chiqib ketdi</option>
+                        </select>
+                    </label>
+                    <label>
+                        Sana
+                        <input id="admissionDate" type="date">
+                    </label>
+                    <label>
+                        Izoh
+                        <input id="admissionNote" type="text">
+                    </label>
+                    <button type="submit">Saqlash</button>
+                    <p class="form-message" id="admissionMessage" aria-live="polite"></p>
+                </form>
+                <div class="table-wrap compact-table">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>F.I.Sh</th>
+                                <th>Sinf</th>
+                                <th>Telefon</th>
+                                <th>Holati</th>
+                                <th>Sana</th>
+                                <th>Izoh</th>
+                                <th>Amal</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admissionTable"></tbody>
+                    </table>
+                </div>
+            </section>
+
             <section class="dashboard-grid salary-view app-view" id="salaries" data-view="salaries">
                 <article class="panel">
                     <div class="panel-head">
@@ -503,8 +585,8 @@
                         <select id="userResponsibility" required></select>
                     </label>
                     <label>
-                        Biriktirilgan sinf
-                        <input id="userClass" type="text" placeholder="O'qituvchi uchun: 5-A">
+                        Biriktirilgan sinflar
+                        <input id="userClass" type="text" placeholder="O'qituvchi uchun: 5-A, 7-A">
                     </label>
                     <button type="submit">Xodimni saqlash</button>
                     <p class="form-message" id="userMessage" aria-live="polite"></p>

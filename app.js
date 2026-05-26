@@ -56,7 +56,7 @@ const roleResponsibilities = {
 };
 
 const responsibilitySections = {
-    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "archive"],
+    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "admissions", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "archive"],
     "Moliya": ["monthlyPayments", "expenses"],
     "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers", "attendance"],
     "O'quvchilar": ["students", "teachers", "attendance"],
@@ -64,8 +64,8 @@ const responsibilitySections = {
 };
 
 const permissions = {
-    superadmin: ["students", "attendance", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
-    admin: ["students", "attendance", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
+    superadmin: ["students", "attendance", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
+    admin: ["students", "attendance", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
     zauch: ["students", "attendance", "salaryReports", "teachers", "salaries", "tutors"],
     accountant: ["finance"],
     warehouse: ["services"],
@@ -115,7 +115,8 @@ setValue("#staffMonth", currentMonth);
 setValue("#paymentDate", currentDate);
 setValue("#expenseDate", currentDate);
 setValue("#pendingExpenseDate", currentDate);
-setValue("#attendanceDate", currentDate);
+    setValue("#attendanceDate", currentDate);
+setValue("#admissionDate", currentDate);
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
 initFirebaseBackend();
 loadStateFromServer();
@@ -195,7 +196,11 @@ document.querySelector("#studentForm").addEventListener("submit", (event) => {
     event.preventDefault();
     if (!can("students")) return;
 
-    const className = currentUser.role === "teacher" ? currentUser.assignedClass : normalizeClass(value("#studentClass"));
+    const className = normalizeClass(value("#studentClass"));
+    if (currentUser.role === "teacher" && !assignedClasses(currentUser).includes(className)) {
+        flash("#studentMessage", "Faqat o'zingizga biriktirilgan sinfga o'quvchi qo'sha olasiz.");
+        return;
+    }
     const dormitory = document.querySelector("#studentDormitory").checked;
 
     state.students.push({
@@ -216,7 +221,7 @@ document.querySelector("#attendanceForm")?.addEventListener("submit", (event) =>
     if (!can("attendance")) return;
 
     const date = value("#attendanceDate") || currentDate;
-    const className = currentUser.role === "teacher" ? currentUser.assignedClass : value("#attendanceClass");
+    const className = value("#attendanceClass");
     const rows = [...document.querySelectorAll("#attendanceTable tr[data-student-id]")];
     if (!className || !rows.length) {
         flash("#attendanceMessage", "Davomat uchun sinf va o'quvchilar mavjud emas.");
@@ -243,6 +248,7 @@ document.querySelector("#attendanceForm")?.addEventListener("submit", (event) =>
         else state.attendance.push(record);
     });
 
+    archiveRecord("attendance", "Davomat saqlandi", { className, date, teacherName: currentUser.fullName });
     saveState();
     flash("#attendanceMessage", "Davomat saqlandi.");
     renderApp();
@@ -360,7 +366,7 @@ document.querySelector("#userForm").addEventListener("submit", (event) => {
         password: value("#userPassword"),
         role,
         responsibility: roleResponsibilities[role] || value("#userResponsibility"),
-        assignedClass: normalizeClass(value("#userClass"))
+        assignedClass: normalizeAssignedClasses(value("#userClass"))
     });
 
     saveAndRender(event.target, "#userMessage", "Rol saqlandi.");
@@ -522,6 +528,26 @@ document.querySelector("#founderForm").addEventListener("submit", (event) => {
     setValue("#serviceJob", "haydovchi");
 });
 
+document.querySelector("#admissionForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!can("admissions")) return;
+
+    state.admissions.push({
+        id: createId("admission"),
+        schoolYear: "2026/2027",
+        studentName: value("#admissionStudentName"),
+        className: normalizeClass(value("#admissionClassName")),
+        phone: value("#admissionPhone"),
+        status: value("#admissionStatus"),
+        admissionDate: value("#admissionDate") || currentDate,
+        note: value("#admissionNote"),
+        createdBy: currentUser.fullName
+    });
+    archiveRecord("admissions", "Qabul ma'lumoti qo'shildi", state.admissions[state.admissions.length - 1]);
+    saveAndRender(event.target, "#admissionMessage", "Qabul ma'lumoti saqlandi.");
+    setValue("#admissionDate", currentDate);
+});
+
 document.querySelector("#serviceForm").addEventListener("submit", (event) => {
     event.preventDefault();
     if (!can("services")) return;
@@ -607,9 +633,10 @@ function renderApp() {
     const attendanceTotals = todayAttendanceTotals();
     document.querySelector("#presentCount").textContent = attendanceTotals.present;
     document.querySelector("#absentCount").textContent = attendanceTotals.absent;
+    document.querySelector("#excusedAbsentCount").textContent = attendanceTotals.excused;
     document.querySelector("#assignedClassBadge").textContent = currentUser.assignedClass || "Barcha sinflar";
     if (currentUser.role === "teacher") {
-        setValue("#studentClass", currentUser.assignedClass);
+        setValue("#studentClass", assignedClasses(currentUser)[0] || "");
     }
 
     applyPermissions();
@@ -626,6 +653,7 @@ function renderApp() {
     renderStudentByClassSection();
     renderAttendanceClassOptions();
     renderAttendance();
+    renderAdmissions();
     renderSalaryReports();
     renderSalaryReportSummary();
     renderTeacherSalarySheets();
@@ -743,6 +771,7 @@ function setActiveView(viewName) {
 function applyPermissions() {
     toggleForm("#studentForm", can("students"));
     toggleForm("#attendanceForm", can("attendance"));
+    toggleForm("#admissionForm", can("admissions"));
     toggleForm("#paymentForm", can("finance"));
     toggleForm("#salaryReportForm", can("salaryReports"));
     toggleForm("#teacherForm", can("teachers"));
@@ -755,7 +784,7 @@ function applyPermissions() {
     toggleForm("#serviceForm", can("services"));
     toggleForm("#staffSalaryForm", can("services"));
 
-    const sectionIds = ["students", "attendance", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses", "archive"];
+    const sectionIds = ["students", "attendance", "admissions", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses", "archive"];
     sectionIds.forEach((id) => {
         const element = document.querySelector(`#${id}`);
         if (!element) return;
@@ -1217,7 +1246,7 @@ function renderAttendanceClassOptions() {
 
     const previous = select.value;
     const classes = currentUser.role === "teacher"
-        ? [currentUser.assignedClass].filter(Boolean)
+        ? assignedClasses(currentUser)
         : visibleClassNames();
     select.innerHTML = "";
     classes.forEach((className) => select.append(new Option(className, className)));
@@ -1230,7 +1259,7 @@ function renderAttendance() {
     const badge = document.querySelector("#attendanceClassBadge");
     if (!table || !badge) return;
 
-    const className = currentUser.role === "teacher" ? currentUser.assignedClass : value("#attendanceClass");
+    const className = value("#attendanceClass");
     const date = value("#attendanceDate") || currentDate;
     const students = getVisibleStudents().filter((student) => student.className === className);
     badge.textContent = className || "Sinf tanlanmagan";
@@ -1248,10 +1277,36 @@ function renderAttendance() {
                 <select aria-label="${escapeHtml(student.name)} davomati">
                     <option value="Kelgan"${saved?.status === "Kelgan" ? " selected" : ""}>Kelgan</option>
                     <option value="Kelmagan"${saved?.status === "Kelmagan" ? " selected" : ""}>Kelmagan</option>
-                    <option value="Sababli"${saved?.status === "Sababli" ? " selected" : ""}>Sababli</option>
+                    <option value="Sababli kelmagan"${saved?.status === "Sababli kelmagan" || saved?.status === "Sababli" ? " selected" : ""}>Sababli kelmagan</option>
                 </select>
             </td>
         `;
+        table.append(row);
+    });
+    updateTableWrapVisibility(table);
+}
+
+function renderAdmissions() {
+    const table = document.querySelector("#admissionTable");
+    if (!table) return;
+    const admissions = state.admissions.filter((item) => item.schoolYear === "2026/2027");
+    document.querySelector("#admissionIncomingCount").textContent = admissions.filter((item) => item.status === "Kelyapti").length;
+    document.querySelector("#admissionAcceptedCount").textContent = admissions.filter((item) => item.status === "Qabul qilindi").length;
+    document.querySelector("#admissionLeavingCount").textContent = admissions.filter((item) => item.status === "Chiqib ketdi").length;
+    table.innerHTML = "";
+    admissions.slice().reverse().forEach((item, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${escapeHtml(item.studentName)}</td>
+            <td>${escapeHtml(item.className || "-")}</td>
+            <td>${escapeHtml(item.phone || "-")}</td>
+            <td>${escapeHtml(item.status)}</td>
+            <td>${escapeHtml(formatDate(item.admissionDate))}</td>
+            <td>${escapeHtml(item.note || "-")}</td>
+            <td></td>
+        `;
+        appendTableActions(row, "admissions", item.id);
         table.append(row);
     });
     updateTableWrapVisibility(table);
@@ -1274,6 +1329,7 @@ function renderUsers() {
         `;
         const actionCell = row.querySelector("td:last-child");
         if (actionCell) {
+            actionCell.append(actionButton("Tahrirlash", "ghost", () => editRecord("users", user.id), !can("roles")));
             actionCell.append(actionButton("O'chirish", "danger", () => removeItem("users", user.id), !can("roles") || user.id === currentUser.id));
         }
         table.append(row);
@@ -1484,17 +1540,16 @@ function renderAttendanceReminders() {
     list.innerHTML = "";
     if (!allowed) return;
 
-    const missing = teachers().filter((teacher) => {
-        if (!teacher.assignedClass) return false;
-        return !state.attendance.some((item) => item.date === currentDate && item.className === teacher.assignedClass);
-    });
+    const missing = teachers().flatMap((teacher) => assignedClasses(teacher)
+        .filter((className) => !state.attendance.some((item) => item.date === currentDate && item.className === className))
+        .map((className) => ({ teacher, className })));
     count.textContent = `${missing.length} ta`;
 
-    missing.forEach((teacher) => {
+    missing.forEach(({ teacher, className }) => {
         const item = document.createElement("div");
         item.className = "record-item";
         item.innerHTML = `
-            <strong>${escapeHtml(teacher.assignedClass)} sinf - davomat olinmagan</strong>
+            <strong>${escapeHtml(className)} sinf - davomat olinmagan</strong>
             <span>Sinf rahbar: ${escapeHtml(teacher.fullName || "-")}</span>
             <small>Bugungi sana: ${escapeHtml(currentDate)}</small>
         `;
@@ -1506,7 +1561,8 @@ function todayAttendanceTotals() {
     const records = state.attendance.filter((item) => item.date === currentDate);
     return {
         present: records.filter((item) => item.status === "Kelgan").length,
-        absent: records.filter((item) => item.status === "Kelmagan").length
+        absent: records.filter((item) => item.status === "Kelmagan" || item.status === "Sababli" || item.status === "Sababli kelmagan").length,
+        excused: records.filter((item) => item.status === "Sababli" || item.status === "Sababli kelmagan").length
     };
 }
 
@@ -1816,6 +1872,62 @@ function editRecord(collection, id) {
         });
         return;
     }
+    if (collection === "users") {
+        openInlineEditModal({
+            title: "Rolni tahrirlash",
+            fields: [
+                { name: "fullName", label: "F.I.Sh", type: "text", value: item.fullName || "" },
+                { name: "login", label: "Login", type: "text", value: item.login || "" },
+                { name: "password", label: "Parol", type: "text", value: item.password || "" },
+                { name: "role", label: "Rol", type: "select", value: item.role || "teacher", options: ["admin", "accountant", "zauch", "teacher", "warehouse"] },
+                { name: "assignedClass", label: "Biriktirilgan sinflar", type: "text", value: item.assignedClass || "" }
+            ],
+            onSave: (data, message) => {
+                const duplicate = state.users.some((user) =>
+                    user.id !== item.id && String(user.login || "").toLowerCase() === String(data.login || "").toLowerCase()
+                );
+                if (duplicate) {
+                    message.textContent = "Bu login boshqa xodimda mavjud.";
+                    return false;
+                }
+                item.fullName = data.fullName;
+                item.login = data.login;
+                item.password = data.password;
+                item.role = data.role;
+                item.responsibility = roleResponsibilities[data.role] || "";
+                item.assignedClass = normalizeAssignedClasses(data.assignedClass);
+                archiveRecord("users", "Rol tahrirlandi", item);
+                saveState();
+                renderApp();
+            }
+        });
+        return;
+    }
+    if (collection === "admissions") {
+        openInlineEditModal({
+            title: "Qabul ma'lumotini tahrirlash",
+            fields: [
+                { name: "studentName", label: "O'quvchi F.I.Sh", type: "text", value: item.studentName || "" },
+                { name: "className", label: "Sinf", type: "text", value: item.className || "" },
+                { name: "phone", label: "Telefon", type: "tel", value: item.phone || "" },
+                { name: "status", label: "Holati", type: "select", value: item.status || "Kelyapti", options: ["Kelyapti", "Qabul qilindi", "Chiqib ketdi"] },
+                { name: "admissionDate", label: "Sana", type: "date", value: item.admissionDate || currentDate },
+                { name: "note", label: "Izoh", type: "text", value: item.note || "" }
+            ],
+            onSave: (data) => {
+                item.studentName = data.studentName;
+                item.className = normalizeClass(data.className);
+                item.phone = data.phone;
+                item.status = data.status;
+                item.admissionDate = data.admissionDate || currentDate;
+                item.note = data.note;
+                archiveRecord("admissions", "Qabul ma'lumoti tahrirlandi", item);
+                saveState();
+                renderApp();
+            }
+        });
+        return;
+    }
     if (collection === "salaryReports") {
         openSalaryReportEditModal(id);
         return;
@@ -1957,7 +2069,7 @@ function calculateStats() {
 function getVisibleStudents() {
     if (!currentUser) return [];
     if (currentUser.role === "teacher") {
-        return state.students.filter((item) => item.className === currentUser.assignedClass);
+        return state.students.filter((item) => assignedClasses(currentUser).includes(item.className));
     }
     return state.students;
 }
@@ -1965,7 +2077,7 @@ function getVisibleStudents() {
 function getVisiblePayments() {
     if (!currentUser) return [];
     if (currentUser.role === "teacher") {
-        return state.payments.filter((item) => item.className === currentUser.assignedClass || item.teacherId === currentUser.id);
+        return state.payments.filter((item) => assignedClasses(currentUser).includes(item.className) || item.teacherId === currentUser.id);
     }
     return state.payments;
 }
@@ -2005,16 +2117,23 @@ function getVisibleTutors() {
 function visibleClassNames() {
     const classes = [...new Set([
         ...state.students.map((student) => student.className),
-        ...teachers().map((teacher) => teacher.assignedClass)
+        ...teachers().flatMap((teacher) => assignedClasses(teacher))
     ].filter(Boolean))];
     if (currentUser.role === "teacher") {
-        return currentUser.assignedClass ? [currentUser.assignedClass] : [];
+        return assignedClasses(currentUser);
     }
     return classes;
 }
 
 function teachers() {
     return state.users.filter((user) => user.role === "teacher");
+}
+
+function assignedClasses(user = {}) {
+    return String(user.assignedClass || "")
+        .split(",")
+        .map((className) => normalizeClass(className))
+        .filter(Boolean);
 }
 
 function can(permission) {
@@ -2047,6 +2166,7 @@ function sectionPermission(id) {
         monthlyPayments: "finance",
         expenses: "finance",
         attendance: "attendance",
+        admissions: "admissions",
         archive: "roles",
         staff: "services",
         buses: "services",
@@ -2059,6 +2179,8 @@ function canEditCollection(collection) {
     const map = {
         payments: "finance",
         students: "students",
+        users: "roles",
+        admissions: "admissions",
         schedules: "schedule",
         salaryReports: "salaryReports",
         salaries: "salaries",
@@ -2226,6 +2348,7 @@ function normalizeState(base = {}) {
             ...payment
         })) : [],
         attendance: Array.isArray(base.attendance) ? base.attendance : [],
+        admissions: Array.isArray(base.admissions) ? base.admissions : [],
         salaries: Array.isArray(base.salaries) ? base.salaries : [],
         tutors: Array.isArray(base.tutors) ? base.tutors : [],
         founders: Array.isArray(base.founders) ? base.founders : [],
@@ -2361,6 +2484,14 @@ function createId(prefix) {
 
 function normalizeClass(nextValue) {
     return nextValue.trim().toUpperCase();
+}
+
+function normalizeAssignedClasses(nextValue) {
+    return String(nextValue || "")
+        .split(",")
+        .map((className) => normalizeClass(className))
+        .filter(Boolean)
+        .join(", ");
 }
 
 function defaultMonthlyFee(className) {
