@@ -591,6 +591,11 @@
                     <button type="submit">Xodimni saqlash</button>
                     <p class="form-message" id="userMessage" aria-live="polite"></p>
                 </form>
+                <div class="form-actions">
+                    <button type="button" id="exportTeachersBtn">O'qituvchilarni Excelga eksport</button>
+                    <button type="button" class="secondary" id="importTeachersBtn">O'qituvchilarni Exceldan import</button>
+                    <input id="teachersFileInput" type="file" accept=".xlsx,.xls,.csv" class="visually-hidden">
+                </div>
                 <div class="table-wrap compact-table">
                     <table>
                         <thead>
@@ -945,6 +950,11 @@
                         <button type="submit">Tex xodim qo'shish</button>
                         <p class="form-message" id="staffSalaryMessage" aria-live="polite"></p>
                     </form>
+                    <div class="form-actions">
+                        <button type="button" id="exportStaffBtn">Excelga eksport</button>
+                        <button type="button" class="secondary" id="importStaffBtn">Exceldan import</button>
+                        <input id="staffFileInput" type="file" accept=".xlsx,.xls,.csv" class="visually-hidden">
+                    </div>
                     <div class="table-wrap compact-table">
                         <table class="report-table">
                             <thead>
@@ -1002,7 +1012,13 @@
                             </select>
                         </label>
                         <button type="submit">Avtobuschini saqlash</button>
+                        <p class="form-message" id="serviceMessage" aria-live="polite"></p>
                     </form>
+                    <div class="form-actions">
+                        <button type="button" id="exportServicesBtn">Excelga eksport</button>
+                        <button type="button" class="secondary" id="importServicesBtn">Exceldan import</button>
+                        <input id="servicesFileInput" type="file" accept=".xlsx,.xls,.csv" class="visually-hidden">
+                    </div>
                     <div class="table-wrap compact-table">
                         <table class="report-table">
                             <thead>
@@ -1011,8 +1027,9 @@
                                     <th>F.I.Sh</th>
                                     <th>Lavozimi</th>
                                     <th>Oylik</th>
-                                    <th>Avans</th>
-                                    <th>Avans turi</th>
+                                    <th>Avans naqd</th>
+                                    <th>Avans Click</th>
+                                    <th>Beriladi</th>
                                     <th>Amal</th>
                                 </tr>
                             </thead>

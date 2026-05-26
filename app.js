@@ -95,6 +95,15 @@ const sidebarBackdrop = document.querySelector("#sidebarBackdrop");
 const exportSalaryReportsBtn = document.querySelector("#exportSalaryReportsBtn");
 const importSalaryReportsBtn = document.querySelector("#importSalaryReportsBtn");
 const salaryReportFileInput = document.querySelector("#salaryReportFileInput");
+const exportTeachersBtn = document.querySelector("#exportTeachersBtn");
+const importTeachersBtn = document.querySelector("#importTeachersBtn");
+const teachersFileInput = document.querySelector("#teachersFileInput");
+const exportStaffBtn = document.querySelector("#exportStaffBtn");
+const importStaffBtn = document.querySelector("#importStaffBtn");
+const staffFileInput = document.querySelector("#staffFileInput");
+const exportServicesBtn = document.querySelector("#exportServicesBtn");
+const importServicesBtn = document.querySelector("#importServicesBtn");
+const servicesFileInput = document.querySelector("#servicesFileInput");
 const editSalaryModal = document.querySelector("#editSalaryModal");
 const salaryReportEditForm = document.querySelector("#salaryReportEditForm");
 const closeSalaryModalBtn = document.querySelector("#closeSalaryModalBtn");
@@ -172,6 +181,15 @@ sidebarPanelToggle.addEventListener("click", () => {
 exportSalaryReportsBtn?.addEventListener("click", exportSalaryReportsToExcel);
 importSalaryReportsBtn?.addEventListener("click", () => salaryReportFileInput?.click());
 salaryReportFileInput?.addEventListener("change", handleSalaryReportFileInput);
+exportTeachersBtn?.addEventListener("click", exportTeachersToExcel);
+importTeachersBtn?.addEventListener("click", () => teachersFileInput?.click());
+teachersFileInput?.addEventListener("change", handleTeachersFileInput);
+exportStaffBtn?.addEventListener("click", exportStaffToExcel);
+importStaffBtn?.addEventListener("click", () => staffFileInput?.click());
+staffFileInput?.addEventListener("change", handleStaffFileInput);
+exportServicesBtn?.addEventListener("click", exportServicesToExcel);
+importServicesBtn?.addEventListener("click", () => servicesFileInput?.click());
+servicesFileInput?.addEventListener("change", handleServicesFileInput);
 salaryReportEditForm?.addEventListener("submit", saveSalaryReportEdit);
 closeSalaryModalBtn?.addEventListener("click", closeSalaryReportModal);
 cancelSalaryModalBtn?.addEventListener("click", closeSalaryReportModal);
@@ -337,7 +355,7 @@ document.querySelector("#teacherForm")?.addEventListener("submit", (event) => {
         password: value("#teacherPassword"),
         role: "teacher",
         subject: value("#teacherSubject"),
-        assignedClass: normalizeClass(value("#teacherClass"))
+        assignedClass: normalizeAssignedClasses(value("#teacherClass"))
     });
 
     saveAndRender(event.target, "#teacherMessage", "O'qituvchi saqlandi.");
@@ -1136,6 +1154,205 @@ function importSalaryReportsFromFile(file) {
     reader.readAsArrayBuffer(file);
 }
 
+function handleTeachersFileInput(event) {
+    const file = event.target.files[0];
+    if (file) importTeachersFromFile(file);
+    event.target.value = "";
+}
+
+function handleStaffFileInput(event) {
+    const file = event.target.files[0];
+    if (file) importStaffFromFile(file);
+    event.target.value = "";
+}
+
+function handleServicesFileInput(event) {
+    const file = event.target.files[0];
+    if (file) importServicesFromFile(file);
+    event.target.value = "";
+}
+
+function exportTeachersToExcel() {
+    if (!can("roles")) return;
+    const rows = teachers().map((teacher, index) => ({
+        No: index + 1,
+        "F.I.Sh": teacher.fullName || "",
+        Login: teacher.login || "",
+        Parol: teacher.password || "",
+        Fan: teacher.subject || "",
+        "Biriktirilgan sinflar": teacher.assignedClass || ""
+    }));
+    exportExcelRows(rows, "Oqituvchilar", "oqituvchilar.xlsx", "#userMessage");
+}
+
+function importTeachersFromFile(file) {
+    if (!can("roles")) return;
+    readExcelRows(file, "#userMessage", (rows) => {
+        let skipped = 0;
+        const imported = [];
+        rows.forEach((row) => {
+            const fullName = excelCell(row, ["F.I.Sh", "FISH", "Ismi sharfi", "O'qituvchi", "Ustoz"]);
+            if (!fullName) return;
+            const suppliedLogin = excelCell(row, ["Login"]);
+            const duplicate = suppliedLogin && state.users.some((user) =>
+                String(user.login || "").toLowerCase() === suppliedLogin.toLowerCase()
+            );
+            if (duplicate) {
+                skipped += 1;
+                return;
+            }
+            const teacher = {
+                id: createId("user"),
+                fullName,
+                login: suppliedLogin || nextAvailableLogin(fullName),
+                password: excelCell(row, ["Parol"]) || "teacher123",
+                role: "teacher",
+                responsibility: roleResponsibilities.teacher,
+                subject: excelCell(row, ["Fan", "Lavozimi"]),
+                assignedClass: normalizeAssignedClasses(excelCell(row, ["Biriktirilgan sinflar", "Sinflar", "Sinf"]))
+            };
+            state.users.push(teacher);
+            imported.push(teacher);
+        });
+        imported.forEach((teacher) => archiveRecord("users", "Exceldan o'qituvchi import qilindi", teacher));
+        saveState();
+        renderApp();
+        const suffix = skipped ? ` ${skipped} ta takror login o'tkazilmadi.` : "";
+        flash("#userMessage", `${imported.length} ta o'qituvchi import qilindi.${suffix}`);
+    });
+}
+
+function exportStaffToExcel() {
+    if (!can("services")) return;
+    const rows = state.staffSalaries.map((item, index) => ({
+        No: index + 1,
+        "F.I.Sh": item.name || "",
+        Lavozimi: item.job || "",
+        Oy: item.month || "",
+        "Jami oylik": Number(item.salary || 0),
+        Jarima: Number(item.fine || 0),
+        Avans: staffSalaryTotals(item).advanceTotal,
+        "Avans turi": item.advanceType || "Bank orqali"
+    }));
+    exportExcelRows(rows, "TexXodimlar", "tex_xodimlar.xlsx", "#staffSalaryMessage");
+}
+
+function importStaffFromFile(file) {
+    if (!can("services")) return;
+    readExcelRows(file, "#staffSalaryMessage", (rows) => {
+        const imported = rows.map((row) => ({
+            id: createId("staffSalary"),
+            name: excelCell(row, ["F.I.Sh", "FISH", "Ismi sharfi", "Tex xodim"]),
+            job: excelCell(row, ["Lavozimi", "Ishi"]) || "Tex xodim",
+            month: excelCell(row, ["Oy"]) || currentMonth,
+            salary: excelNumber(row, ["Jami oylik", "Oylik"]),
+            fine: excelNumber(row, ["Jarima"]),
+            advance: excelNumber(row, ["Avans", "Berilgan avans"]),
+            advanceType: normalizeAdvanceType(excelCell(row, ["Avans turi"]) || "Bank orqali"),
+            createdBy: currentUser.fullName
+        })).filter((item) => item.name);
+        imported.forEach((item) => {
+            state.staffSalaries.push(item);
+            archiveRecord("staffSalaries", "Exceldan tex xodim import qilindi", item);
+        });
+        saveState();
+        renderApp();
+        flash("#staffSalaryMessage", `${imported.length} ta tex xodim import qilindi.`);
+    });
+}
+
+function exportServicesToExcel() {
+    if (!can("services")) return;
+    const rows = state.services.filter((item) => item.type === "Avtobus").map((item, index) => ({
+        No: index + 1,
+        "F.I.Sh": item.driverName || item.title || "",
+        Lavozimi: item.job || "haydovchi",
+        Oylik: Number(item.salary || 0),
+        Avans: Number(item.advance || 0),
+        "Avans turi": item.advanceType || "Naqd pul"
+    }));
+    exportExcelRows(rows, "AvtobusXizmati", "avtobus_xizmati.xlsx", "#serviceMessage");
+}
+
+function importServicesFromFile(file) {
+    if (!can("services")) return;
+    readExcelRows(file, "#serviceMessage", (rows) => {
+        const imported = rows.map((row) => ({
+            id: createId("service"),
+            type: "Avtobus",
+            driverName: excelCell(row, ["F.I.Sh", "FISH", "Ismi sharfi", "Avtobuschi"]),
+            job: excelCell(row, ["Lavozimi", "Ishi"]) || "haydovchi",
+            salary: excelNumber(row, ["Oylik", "Beriladigan oylik"]),
+            advance: excelNumber(row, ["Avans", "Berilgan avans"]),
+            advanceType: normalizeServiceAdvanceType(excelCell(row, ["Avans turi"]) || "Naqd pul"),
+            createdBy: currentUser.fullName
+        })).filter((item) => item.driverName);
+        imported.forEach((item) => {
+            state.services.push(item);
+            archiveRecord("services", "Exceldan avtobuschi import qilindi", item);
+        });
+        saveState();
+        renderApp();
+        flash("#serviceMessage", `${imported.length} ta avtobuschi import qilindi.`);
+    });
+}
+
+function exportExcelRows(rows, sheetName, fileName, messageSelector) {
+    if (!window.XLSX) {
+        flash(messageSelector, "Excel kutubxonasi yuklanmadi.");
+        return;
+    }
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, fileName);
+}
+
+function readExcelRows(file, messageSelector, onLoad) {
+    if (!window.XLSX) {
+        flash(messageSelector, "Excel kutubxonasi yuklanmadi.");
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            const workbook = XLSX.read(new Uint8Array(event.target.result), { type: "array" });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            onLoad(XLSX.utils.sheet_to_json(worksheet, { defval: "" }));
+        } catch (error) {
+            flash(messageSelector, "Excel faylni o'qishda xatolik yuz berdi.");
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function excelCell(row, names) {
+    for (const name of names) {
+        const value = String(row[name] ?? "").trim();
+        if (value) return value;
+    }
+    return "";
+}
+
+function excelNumber(row, names) {
+    const value = excelCell(row, names).replace(/\s/g, "").replace(/[^\d.-]/g, "");
+    return Number(value || 0);
+}
+
+function nextAvailableLogin(fullName) {
+    const base = String(fullName || "teacher")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ".")
+        .replace(/^\.+|\.+$/g, "") || "teacher";
+    let login = base;
+    let suffix = 1;
+    while (state.users.some((user) => String(user.login || "").toLowerCase() === login.toLowerCase())) {
+        suffix += 1;
+        login = `${base}${suffix}`;
+    }
+    return login;
+}
+
 function renderSalaryReportSummary() {
     const summary = document.querySelector("#salaryReportSummary");
     if (!summary) return;
@@ -1157,8 +1374,9 @@ function renderTeacherFinance() {
     table.innerHTML = "";
     teachers().forEach((teacher) => {
         if (currentUser.role === "teacher" && teacher.id !== currentUser.id) return;
-        const classStudents = state.students.filter((student) => student.className === teacher.assignedClass);
-        const classPayments = state.payments.filter((payment) => payment.className === teacher.assignedClass);
+        const teacherClasses = assignedClasses(teacher);
+        const classStudents = state.students.filter((student) => teacherClasses.includes(student.className));
+        const classPayments = state.payments.filter((payment) => teacherClasses.includes(payment.className));
         if (!classStudents.length && !classPayments.length) return;
         const required = sum(classPayments, "requiredAmount") || sum(classStudents, "monthlyFee");
         const paid = sum(classPayments, "paidAmount");
@@ -1875,12 +2093,13 @@ function editRecord(collection, id) {
     if (collection === "users") {
         openInlineEditModal({
             title: "Rolni tahrirlash",
+            description: "Bitta ustozga bir nechta sinf berish uchun sinflarni vergul bilan yozing: 5-A, 7-A.",
             fields: [
                 { name: "fullName", label: "F.I.Sh", type: "text", value: item.fullName || "" },
                 { name: "login", label: "Login", type: "text", value: item.login || "" },
                 { name: "password", label: "Parol", type: "text", value: item.password || "" },
                 { name: "role", label: "Rol", type: "select", value: item.role || "teacher", options: ["admin", "accountant", "zauch", "teacher", "warehouse"] },
-                { name: "assignedClass", label: "Biriktirilgan sinflar", type: "text", value: item.assignedClass || "" }
+                { name: "assignedClass", label: "Biriktirilgan sinflar (masalan: 5-A, 7-A)", type: "text", value: item.assignedClass || "" }
             ],
             onSave: (data, message) => {
                 const duplicate = state.users.some((user) =>
@@ -2085,7 +2304,7 @@ function getVisiblePayments() {
 function getVisibleSchedules() {
     if (!currentUser) return [];
     if (currentUser.role === "teacher") {
-        return state.schedules.filter((item) => item.teacherId === currentUser.id || item.className === currentUser.assignedClass);
+        return state.schedules.filter((item) => item.teacherId === currentUser.id || assignedClasses(currentUser).includes(item.className));
     }
     return state.schedules;
 }
@@ -2488,9 +2707,10 @@ function normalizeClass(nextValue) {
 
 function normalizeAssignedClasses(nextValue) {
     return String(nextValue || "")
-        .split(",")
+        .split(/[,;\n]+/)
         .map((className) => normalizeClass(className))
         .filter(Boolean)
+        .filter((className, index, classes) => classes.indexOf(className) === index)
         .join(", ");
 }
 
