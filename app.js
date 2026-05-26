@@ -1,6 +1,7 @@
 const STORAGE_KEY = "idealSchoolPlatformData";
 const THEME_KEY = "idealSchoolTheme";
 const DORMITORY_FEE = 300000;
+const ARCHIVE_POLICY_VERSION = "monthly-archive-v1";
 
 const defaultUsers = [
     {
@@ -10,30 +11,6 @@ const defaultUsers = [
         password: "idealbeshariq",
         role: "superadmin",
         assignedClass: ""
-    },
-    {
-        id: "u-admin",
-        fullName: "IDEAL SCHOOL Admin",
-        login: "admin",
-        password: "admin123",
-        role: "admin",
-        assignedClass: ""
-    },
-    {
-        id: "u-zauch",
-        fullName: "Zauch",
-        login: "zauch",
-        password: "zauch123",
-        role: "zauch",
-        assignedClass: ""
-    },
-    {
-        id: "u-teacher",
-        fullName: "O'qituvchi",
-        login: "teacher",
-        password: "teacher123",
-        role: "teacher",
-        assignedClass: "5-A"
     }
 ];
 
@@ -2455,8 +2432,10 @@ async function loadStateFromServer() {
         if (!response.ok) return;
         const data = await response.json();
         if (data && Object.keys(data).length) {
+            const needsCleanup = needsArchiveCleanup(data);
             state = normalizeState(data);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            if (needsCleanup) await saveStateToServer();
             if (currentUser) renderApp();
         }
         serverOnline = true;
@@ -2505,8 +2484,13 @@ async function loadStateFromFirebase() {
     try {
         const snapshot = await firestoreDb.collection("platform").doc("idealSchool").get();
         if (snapshot.exists) {
-            state = normalizeState(snapshot.data());
+            const data = snapshot.data();
+            const needsCleanup = needsArchiveCleanup(data);
+            state = normalizeState(data);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            if (needsCleanup) {
+                await firestoreDb.collection("platform").doc("idealSchool").set(state);
+            }
         } else {
             await firestoreDb.collection("platform").doc("idealSchool").set(state);
         }
@@ -2527,6 +2511,10 @@ async function saveStateToFirebase() {
 }
 
 function normalizeState(base = {}) {
+    const baseSettings = base.settings && typeof base.settings === "object" ? base.settings : {};
+    const archive = baseSettings.archivePolicyVersion === ARCHIVE_POLICY_VERSION
+        ? currentMonthArchive(base.archive)
+        : [];
     const users = Array.isArray(base.users) ? base.users.map((user) => ({
         subject: "",
         responsibility: roleResponsibilities[user.role] || "",
@@ -2572,7 +2560,7 @@ function normalizeState(base = {}) {
         tutors: Array.isArray(base.tutors) ? base.tutors : [],
         founders: Array.isArray(base.founders) ? base.founders : [],
         pendingExpenses: Array.isArray(base.pendingExpenses) ? base.pendingExpenses : [],
-        archive: Array.isArray(base.archive) ? base.archive : [],
+        archive,
         finance: Array.isArray(base.finance) ? base.finance.map((item) => ({
             quantity: "",
             expenseDate: String(item.createdAt || "").slice(0, 10),
@@ -2599,9 +2587,23 @@ function normalizeState(base = {}) {
             smallClassFee: 0,
             bigClassFee: 0,
             dormitoryFee: 0,
-            ...(base.settings && typeof base.settings === "object" ? base.settings : {})
+            ...baseSettings,
+            archivePolicyVersion: ARCHIVE_POLICY_VERSION
         }
     };
+}
+
+function needsArchiveCleanup(base = {}) {
+    const settings = base.settings && typeof base.settings === "object" ? base.settings : {};
+    if (settings.archivePolicyVersion !== ARCHIVE_POLICY_VERSION) return true;
+    return currentMonthArchive(base.archive).length !== (Array.isArray(base.archive) ? base.archive.length : 0);
+}
+
+function currentMonthArchive(archive) {
+    const month = new Date().toISOString().slice(0, 7);
+    return Array.isArray(archive)
+        ? archive.filter((entry) => String(entry.archivedAt || "").slice(0, 7) === month)
+        : [];
 }
 
 function saveAndRender(form, messageSelector, message) {
