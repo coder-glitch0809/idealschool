@@ -57,6 +57,7 @@
                 <a href="#buses">Avtobus xizmati</a>
                 <a href="#students">O'quvchilar</a>
                 <a href="#attendance">Davomat</a>
+                <a href="#dormitory">Yotoqxona</a>
                 <a href="#admissions">Qabul</a>
                 <a href="#monthlyPayments">Moliya</a>
                 <a href="#expenses">Rasxodlar</a>
@@ -121,12 +122,12 @@
                 <article>
                     <span>Bugun kelmagan</span>
                     <strong id="absentCount">0</strong>
-                    <small>Davomat bo'yicha</small>
+                    <small id="absentSummary">Sababli: 0 | Davomat bo'yicha</small>
                 </article>
                 <article>
-                    <span>Sababli kelmagan</span>
-                    <strong id="excusedAbsentCount">0</strong>
-                    <small>Davomat bo'yicha</small>
+                    <span>Yotoqxona</span>
+                    <strong id="dormitoryTotalCount">0</strong>
+                    <small id="dormitoryDashboardSummary">O'g'il: 0/0 | Qiz: 0/0</small>
                 </article>
             </section>
 
@@ -175,6 +176,17 @@
                 <div class="record-list" id="attendanceReminderList"></div>
             </section>
 
+            <section class="panel app-view is-active-view" id="dormitoryAbsentPanel" data-view="dashboard">
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Yotoqxona nazorati</p>
+                        <h2>Bugun kelmagan yotoqxona o'quvchilari</h2>
+                    </div>
+                    <span class="status-pill" id="dormitoryAbsentCount">0 ta</span>
+                </div>
+                <div class="record-list" id="dormitoryAbsentList"></div>
+            </section>
+
             <section class="dashboard-grid finance-view app-view" id="payments" data-view="payments">
                 <article class="panel animated-panel">
                     <div class="panel-head">
@@ -207,6 +219,13 @@
                             <input id="studentClass" type="text" placeholder="Masalan: 5-A yoki 8 tabiiy" required>
                         </label>
                         <label>
+                            Jinsi
+                            <select id="studentGender" required>
+                                <option value="O'g'il bola">O'g'il bola</option>
+                                <option value="Qiz bola">Qiz bola</option>
+                            </select>
+                        </label>
+                        <label>
                             Ota-ona telefoni
                             <input id="studentPhone" type="tel" placeholder="+998 90 123 45 67">
                         </label>
@@ -227,6 +246,7 @@
                                 <tr>
                                     <th>F.I.Sh</th>
                                     <th>Sinf</th>
+                                    <th>Jinsi</th>
                                     <th>Telefon</th>
                                     <th>Oylik</th>
                                     <th>To'langan</th>
@@ -333,6 +353,7 @@
                                 <th>No</th>
                                 <th>F.I.Sh</th>
                                 <th>Sinf</th>
+                                <th>Jinsi</th>
                                 <th>Telefon</th>
                                 <th>Oylik</th>
                                 <th>To'langan</th>
@@ -381,6 +402,72 @@
                     <button type="submit">Davomatni saqlash</button>
                     <p class="form-message" id="attendanceMessage" aria-live="polite"></p>
                 </form>
+            </section>
+
+            <section class="section-row app-view dormitory-view" id="dormitory" data-view="dormitory">
+                <article class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Yotoqxona nazorati</p>
+                            <h2>O'g'il bolalar davomat</h2>
+                        </div>
+                        <span class="status-pill blue" id="dormitoryBoysBadge">0 ta</span>
+                    </div>
+                    <form class="wide-form dormitory-attendance-form" data-gender="O'g'il bola" data-table="#dormitoryBoysTable" data-message="#dormitoryBoysMessage">
+                        <label>
+                            Sana
+                            <input id="dormitoryBoysDate" type="date" required>
+                        </label>
+                        <div class="table-wrap compact-table">
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Yotoqxonada</th>
+                                        <th>O'quvchi F.I.Sh</th>
+                                        <th>Sinf</th>
+                                        <th>Holati</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dormitoryBoysTable"></tbody>
+                            </table>
+                        </div>
+                        <button type="submit">Davomatni saqlash</button>
+                        <p class="form-message" id="dormitoryBoysMessage" aria-live="polite"></p>
+                    </form>
+                </article>
+
+                <article class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Yotoqxona nazorati</p>
+                            <h2>Qiz bolalar davomat</h2>
+                        </div>
+                        <span class="status-pill blue" id="dormitoryGirlsBadge">0 ta</span>
+                    </div>
+                    <form class="wide-form dormitory-attendance-form" data-gender="Qiz bola" data-table="#dormitoryGirlsTable" data-message="#dormitoryGirlsMessage">
+                        <label>
+                            Sana
+                            <input id="dormitoryGirlsDate" type="date" required>
+                        </label>
+                        <div class="table-wrap compact-table">
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Yotoqxonada</th>
+                                        <th>O'quvchi F.I.Sh</th>
+                                        <th>Sinf</th>
+                                        <th>Holati</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dormitoryGirlsTable"></tbody>
+                            </table>
+                        </div>
+                        <button type="submit">Davomatni saqlash</button>
+                        <p class="form-message" id="dormitoryGirlsMessage" aria-live="polite"></p>
+                    </form>
+                </article>
             </section>
 
             <section class="panel app-view" id="admissions" data-view="admissions">

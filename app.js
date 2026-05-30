@@ -33,10 +33,10 @@ const roleResponsibilities = {
 };
 
 const responsibilitySections = {
-    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "admissions", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "archive"],
+    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "dormitory", "admissions", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "archive"],
     "Moliya": ["monthlyPayments", "expenses"],
-    "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers", "attendance"],
-    "O'quvchilar": ["students", "teachers", "attendance"],
+    "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers", "attendance", "dormitory"],
+    "O'quvchilar": ["students", "teachers", "attendance", "dormitory"],
     "Zap xoz": ["staff", "buses"]
 };
 
@@ -102,6 +102,8 @@ setValue("#paymentDate", currentDate);
 setValue("#expenseDate", currentDate);
 setValue("#pendingExpenseDate", currentDate);
     setValue("#attendanceDate", currentDate);
+setValue("#dormitoryBoysDate", currentDate);
+setValue("#dormitoryGirlsDate", currentDate);
 setValue("#admissionDate", currentDate);
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
 initFirebaseBackend();
@@ -202,6 +204,7 @@ document.querySelector("#studentForm").addEventListener("submit", (event) => {
         id: createId("student"),
         name: value("#studentName"),
         className,
+        gender: value("#studentGender"),
         phone: value("#studentPhone"),
         monthlyFee: numberValue("#studentFee") || defaultMonthlyFee(className),
         dormitory,
@@ -247,6 +250,55 @@ document.querySelector("#attendanceForm")?.addEventListener("submit", (event) =>
     saveState();
     flash("#attendanceMessage", "Davomat saqlandi.");
     renderApp();
+});
+
+document.querySelectorAll(".dormitory-attendance-form").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!can("attendance")) return;
+
+        const gender = form.dataset.gender;
+        const tableSelector = form.dataset.table;
+        const messageSelector = form.dataset.message;
+        const date = form.querySelector('input[type="date"]')?.value || currentDate;
+        const rows = [...document.querySelectorAll(`${tableSelector} tr[data-student-id]`)];
+        const dormitoryRows = rows.filter((row) => row.querySelector("[data-dormitory-check]")?.checked);
+        if (!rows.length) {
+            flash(messageSelector, "Yotoqxona davomatida o'quvchilar mavjud emas.");
+            return;
+        }
+
+        rows.forEach((row) => {
+            const studentId = row.dataset.studentId;
+            const student = state.students.find((item) => item.id === studentId);
+            if (!student) return;
+            const inDormitory = row.querySelector("[data-dormitory-check]")?.checked || false;
+            student.dormitory = inDormitory;
+            student.dormitoryFee = inDormitory ? DORMITORY_FEE : 0;
+            if (!inDormitory) return;
+
+            const existing = state.dormitoryAttendance.find((item) => item.date === date && item.studentId === studentId);
+            const record = {
+                id: existing?.id || createId("dormitoryAttendance"),
+                date,
+                gender,
+                className: student.className,
+                studentId,
+                studentName: student.name,
+                status: row.querySelector("select").value,
+                teacherId: currentUser.id,
+                teacherName: currentUser.fullName,
+                updatedAt: new Date().toISOString()
+            };
+            if (existing) Object.assign(existing, record);
+            else state.dormitoryAttendance.push(record);
+        });
+
+        archiveRecord("dormitoryAttendance", "Yotoqxona davomati saqlandi", { gender, date, total: dormitoryRows.length, teacherName: currentUser.fullName });
+        saveState();
+        flash(messageSelector, "Yotoqxona davomati saqlandi.");
+        renderApp();
+    });
 });
 
 document.querySelector("#paymentForm").addEventListener("submit", (event) => {
@@ -596,6 +648,8 @@ document.querySelector("#financeClassFilter")?.addEventListener("change", render
 document.querySelector("#studentClassFilter")?.addEventListener("change", renderStudentByClassSection);
 document.querySelector("#attendanceClass")?.addEventListener("change", renderAttendance);
 document.querySelector("#attendanceDate")?.addEventListener("change", renderAttendance);
+document.querySelector("#dormitoryBoysDate")?.addEventListener("change", renderDormitoryAttendance);
+document.querySelector("#dormitoryGirlsDate")?.addEventListener("change", renderDormitoryAttendance);
 document.querySelector("#userRole")?.addEventListener("change", renderRoleResponsibilityOptions);
 document.querySelector("#expenseSalaryCheckbox")?.addEventListener("change", toggleExpenseSalaryFields);
 document.querySelector("#advanceExpenseButton")?.addEventListener("click", () => {
@@ -628,7 +682,10 @@ function renderApp() {
     const attendanceTotals = todayAttendanceTotals();
     document.querySelector("#presentCount").textContent = attendanceTotals.present;
     document.querySelector("#absentCount").textContent = attendanceTotals.absent;
-    document.querySelector("#excusedAbsentCount").textContent = attendanceTotals.excused;
+    document.querySelector("#absentSummary").textContent = `Sababli: ${attendanceTotals.excused} | Davomat bo'yicha`;
+    const dormitoryTotals = todayDormitoryAttendanceTotals();
+    document.querySelector("#dormitoryTotalCount").textContent = dormitoryTotals.total;
+    document.querySelector("#dormitoryDashboardSummary").textContent = `O'g'il: ${dormitoryTotals.boys.present}/${dormitoryTotals.boys.absent} | Qiz: ${dormitoryTotals.girls.present}/${dormitoryTotals.girls.absent}`;
     document.querySelector("#assignedClassBadge").textContent = currentUser.assignedClass || "Barcha sinflar";
     if (currentUser.role === "teacher") {
         setValue("#studentClass", assignedClasses(currentUser)[0] || "");
@@ -648,6 +705,7 @@ function renderApp() {
     renderStudentByClassSection();
     renderAttendanceClassOptions();
     renderAttendance();
+    renderDormitoryAttendance();
     renderAdmissions();
     renderSalaryReports();
     renderSalaryReportSummary();
@@ -661,6 +719,7 @@ function renderApp() {
     renderPendingExpenses();
     renderExpenseReminders();
     renderAttendanceReminders();
+    renderDormitoryAbsentDashboard();
     renderDashboardMonitoring();
     renderFinancePaymentsTable();
     renderFounders();
@@ -766,6 +825,7 @@ function setActiveView(viewName) {
 function applyPermissions() {
     toggleForm("#studentForm", can("students"));
     toggleForm("#attendanceForm", can("attendance"));
+    toggleForm(".dormitory-attendance-form", can("attendance"));
     toggleForm("#admissionForm", can("admissions"));
     toggleForm("#paymentForm", can("finance"));
     toggleForm("#salaryReportForm", can("salaryReports"));
@@ -779,7 +839,7 @@ function applyPermissions() {
     toggleForm("#serviceForm", can("services"));
     toggleForm("#staffSalaryForm", can("services"));
 
-    const sectionIds = ["students", "attendance", "admissions", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses", "archive"];
+    const sectionIds = ["students", "attendance", "dormitory", "admissions", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses", "archive"];
     sectionIds.forEach((id) => {
         const element = document.querySelector(`#${id}`);
         if (!element) return;
@@ -885,6 +945,7 @@ function renderStudents() {
         row.innerHTML = `
             <td>${escapeHtml(student.name)}</td>
             <td>${escapeHtml(student.className || "-")}</td>
+            <td>${escapeHtml(student.gender || "-")}</td>
             <td>${escapeHtml(student.phone || "-")}</td>
             <td>${formatMoney((student.monthlyFee || 0) + (student.dormitory ? (student.dormitoryFee || DORMITORY_FEE) : 0))} so'm</td>
             <td>${formatMoney(status.paid)} so'm</td>
@@ -1423,6 +1484,7 @@ function renderStudentByClassSection() {
             <td>${index + 1}</td>
             <td>${escapeHtml(student.name)}</td>
             <td>${escapeHtml(student.className || "-")}</td>
+            <td>${escapeHtml(student.gender || "-")}</td>
             <td>${escapeHtml(student.phone || "-")}</td>
             <td>${formatMoney((student.monthlyFee || 0) + (student.dormitory ? (student.dormitoryFee || DORMITORY_FEE) : 0))} so'm</td>
             <td>${formatMoney(status.paid)} so'm</td>
@@ -1479,6 +1541,62 @@ function renderAttendance() {
         table.append(row);
     });
     updateTableWrapVisibility(table);
+}
+
+function renderDormitoryAttendance() {
+    [
+        {
+            gender: "O'g'il bola",
+            table: "#dormitoryBoysTable",
+            date: "#dormitoryBoysDate",
+            badge: "#dormitoryBoysBadge"
+        },
+        {
+            gender: "Qiz bola",
+            table: "#dormitoryGirlsTable",
+            date: "#dormitoryGirlsDate",
+            badge: "#dormitoryGirlsBadge"
+        }
+    ].forEach((config) => {
+        const table = document.querySelector(config.table);
+        const badge = document.querySelector(config.badge);
+        if (!table || !badge) return;
+
+        const date = value(config.date) || currentDate;
+        const students = getVisibleStudents()
+            .filter((student) => student.gender === config.gender)
+            .sort((first, second) => String(first.className || "").localeCompare(String(second.className || "")));
+        const dormitoryCount = students.filter((student) => student.dormitory).length;
+        badge.textContent = `${dormitoryCount} ta`;
+        table.innerHTML = "";
+
+        students.forEach((student, index) => {
+            const saved = state.dormitoryAttendance.find((item) => item.date === date && item.studentId === student.id);
+            const status = saved?.status || "Kelgan";
+            const row = document.createElement("tr");
+            row.dataset.studentId = student.id;
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>
+                    <label class="check-row">
+                        <input data-dormitory-check type="checkbox"${student.dormitory ? " checked" : ""} aria-label="${escapeHtml(student.name)} yotoqxonada">
+                        <span>Ha</span>
+                    </label>
+                </td>
+                <td>${escapeHtml(student.name)}</td>
+                <td>${escapeHtml(student.className || "-")}</td>
+                <td>
+                    <select aria-label="${escapeHtml(student.name)} yotoqxona davomati">
+                        <option value="Kelgan"${status === "Kelgan" ? " selected" : ""}>Kelgan</option>
+                        <option value="Kelmagan"${status === "Kelmagan" ? " selected" : ""}>Kelmagan</option>
+                        <option value="Sababli kelmagan"${status === "Sababli kelmagan" || status === "Sababli" ? " selected" : ""}>Sababli kelmagan</option>
+                    </select>
+                </td>
+            `;
+            table.append(row);
+        });
+        updateTableWrapVisibility(table);
+    });
 }
 
 function renderAdmissions() {
@@ -1759,6 +1877,55 @@ function todayAttendanceTotals() {
         absent: records.filter((item) => item.status === "Kelmagan" || item.status === "Sababli" || item.status === "Sababli kelmagan").length,
         excused: records.filter((item) => item.status === "Sababli" || item.status === "Sababli kelmagan").length
     };
+}
+
+function todayDormitoryAttendanceTotals() {
+    const dormitoryStudents = state.students.filter((student) => student.dormitory);
+    const records = state.dormitoryAttendance.filter((item) => item.date === currentDate);
+    const totals = {
+        total: dormitoryStudents.length,
+        boys: { present: 0, absent: 0 },
+        girls: { present: 0, absent: 0 }
+    };
+
+    dormitoryStudents.forEach((student) => {
+        const saved = records.find((item) => item.studentId === student.id);
+        const group = student.gender === "Qiz bola" ? totals.girls : totals.boys;
+        if (saved?.status === "Kelmagan" || saved?.status === "Sababli" || saved?.status === "Sababli kelmagan") {
+            group.absent += 1;
+        } else {
+            group.present += 1;
+        }
+    });
+
+    return totals;
+}
+
+function renderDormitoryAbsentDashboard() {
+    const section = document.querySelector("#dormitoryAbsentPanel");
+    const list = document.querySelector("#dormitoryAbsentList");
+    const count = document.querySelector("#dormitoryAbsentCount");
+    if (!section || !list || !count) return;
+
+    const allowed = currentUser?.role === "superadmin" || currentUser?.role === "admin";
+    section.classList.toggle("is-hidden", !allowed);
+    list.innerHTML = "";
+    if (!allowed) return;
+
+    const absentRecords = state.dormitoryAttendance
+        .filter((item) => item.date === currentDate && (item.status === "Kelmagan" || item.status === "Sababli" || item.status === "Sababli kelmagan"))
+        .filter((item) => state.students.some((student) => student.id === item.studentId && student.dormitory));
+
+    count.textContent = `${absentRecords.length} ta`;
+    absentRecords.forEach((item) => {
+        list.append(recordItem({
+            title: `${item.studentName} - ${item.status}`,
+            meta: `${item.gender || "-"} | ${item.className || "-"} | ${item.date}`,
+            note: `Nazoratchi: ${item.teacherName || "-"}`,
+            id: item.id,
+            collection: "dormitoryAttendance"
+        }));
+    });
 }
 
 function archiveRecord(collection, action, item) {
@@ -2050,6 +2217,7 @@ function editRecord(collection, id) {
             fields: [
                 { name: "name", label: "O'quvchi F.I.Sh", type: "text", value: item.name || "" },
                 { name: "className", label: "Sinf", type: "text", value: item.className || "" },
+                { name: "gender", label: "Jinsi", type: "select", value: item.gender || "O'g'il bola", options: ["O'g'il bola", "Qiz bola"] },
                 { name: "phone", label: "Telefon", type: "tel", value: item.phone || "" },
                 { name: "monthlyFee", label: "Oylik to'lov", type: "number", min: 0, value: item.monthlyFee || 0 },
                 { name: "dormitory", label: "Yotoqxonada qoladi (+300000 so'm)", type: "checkbox", value: Boolean(item.dormitory) }
@@ -2057,6 +2225,7 @@ function editRecord(collection, id) {
             onSave: (data) => {
                 item.name = data.name;
                 item.className = normalizeClass(data.className);
+                item.gender = data.gender;
                 item.phone = data.phone;
                 item.monthlyFee = Number(data.monthlyFee || 0);
                 item.dormitory = Boolean(data.dormitory);
@@ -2362,6 +2531,7 @@ function sectionPermission(id) {
         monthlyPayments: "finance",
         expenses: "finance",
         attendance: "attendance",
+        dormitory: "attendance",
         admissions: "admissions",
         archive: "roles",
         staff: "services",
@@ -2529,7 +2699,7 @@ function normalizeState(base = {}) {
 
     return {
         users,
-        students: Array.isArray(base.students) ? base.students.map((student) => ({ monthlyFee: 0, dormitory: false, dormitoryFee: 0, ...student })) : [],
+        students: Array.isArray(base.students) ? base.students.map((student) => ({ monthlyFee: 0, dormitory: false, dormitoryFee: 0, gender: "", ...student })) : [],
         schedules: Array.isArray(base.schedules) ? base.schedules : [],
         salaryReports: Array.isArray(base.salaryReports) ? base.salaryReports.map((report) => ({
             subject: "",
@@ -2555,6 +2725,7 @@ function normalizeState(base = {}) {
             ...payment
         })) : [],
         attendance: Array.isArray(base.attendance) ? base.attendance : [],
+        dormitoryAttendance: Array.isArray(base.dormitoryAttendance) ? base.dormitoryAttendance : [],
         admissions: Array.isArray(base.admissions) ? base.admissions : [],
         salaries: Array.isArray(base.salaries) ? base.salaries : [],
         tutors: Array.isArray(base.tutors) ? base.tutors : [],
