@@ -19,6 +19,7 @@ const roleNames = {
     admin: "Admin",
     zauch: "Zauch",
     teacher: "O'qituvchi",
+    dormitory: "Yotoqxona tarbiyachisi",
     accountant: "Bugalter",
     warehouse: "Zap xoz",
     staff: "Tex xodim"
@@ -29,6 +30,7 @@ const roleResponsibilities = {
     accountant: "Moliya",
     zauch: "Zauch bo'limi",
     teacher: "O'quvchilar",
+    dormitory: "Yotoqxona",
     warehouse: "Zap xoz"
 };
 
@@ -36,17 +38,19 @@ const responsibilitySections = {
     "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "dormitory", "admissions", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "archive"],
     "Moliya": ["monthlyPayments", "expenses"],
     "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers", "attendance", "dormitory"],
-    "O'quvchilar": ["students", "teachers", "attendance", "dormitory"],
+    "O'quvchilar": ["students", "teachers", "attendance"],
+    "Yotoqxona": ["dormitory"],
     "Zap xoz": ["staff", "buses"]
 };
 
 const permissions = {
-    superadmin: ["students", "attendance", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
-    admin: ["students", "attendance", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
+    superadmin: ["students", "attendance", "dormitoryAttendance", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
+    admin: ["students", "attendance", "dormitoryAttendance", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
     zauch: ["students", "attendance", "salaryReports", "teachers", "salaries", "tutors"],
     accountant: ["finance"],
     warehouse: ["services"],
     teacher: ["students", "attendance"],
+    dormitory: ["dormitoryAttendance"],
     staff: ["services"]
 };
 
@@ -255,9 +259,13 @@ document.querySelector("#attendanceForm")?.addEventListener("submit", (event) =>
 document.querySelectorAll(".dormitory-attendance-form").forEach((form) => {
     form.addEventListener("submit", (event) => {
         event.preventDefault();
-        if (!can("attendance")) return;
+        if (!can("dormitoryAttendance")) return;
 
         const gender = form.dataset.gender;
+        if (currentUser.role === "dormitory" && currentUser.dormitoryGender !== gender) {
+            flash(form.dataset.message, "Faqat o'zingizga biriktirilgan yotoqxona guruhini saqlay olasiz.");
+            return;
+        }
         const tableSelector = form.dataset.table;
         const messageSelector = form.dataset.message;
         const date = form.querySelector('input[type="date"]')?.value || currentDate;
@@ -376,6 +384,11 @@ document.querySelector("#teacherForm")?.addEventListener("submit", (event) => {
         flash("#teacherMessage", "Bu login oldin kiritilgan.");
         return;
     }
+    const assignedClass = normalizeAssignedClasses(value("#teacherClass"));
+    if (assignedClasses({ assignedClass }).length > 2) {
+        flash("#teacherMessage", "O'qituvchiga ko'pi bilan 2 ta sinf biriktiriladi.");
+        return;
+    }
 
     state.users.push({
         id: createId("user"),
@@ -384,7 +397,7 @@ document.querySelector("#teacherForm")?.addEventListener("submit", (event) => {
         password: value("#teacherPassword"),
         role: "teacher",
         subject: value("#teacherSubject"),
-        assignedClass: normalizeAssignedClasses(value("#teacherClass"))
+        assignedClass
     });
 
     saveAndRender(event.target, "#teacherMessage", "O'qituvchi saqlandi.");
@@ -396,13 +409,18 @@ document.querySelector("#userForm").addEventListener("submit", (event) => {
 
     const login = value("#userLogin");
     const role = value("#userRole");
-    const allowedAssignableRoles = ["admin", "accountant", "zauch", "teacher", "warehouse"];
+    const allowedAssignableRoles = ["admin", "accountant", "zauch", "teacher", "dormitory", "warehouse"];
     if (!allowedAssignableRoles.includes(role)) {
-        flash("#userMessage", "Faqat admin, bugalter, zauch, o'qituvchi va zap xoz rollari beriladi.");
+        flash("#userMessage", "Faqat admin, bugalter, zauch, o'qituvchi, yotoqxona tarbiyachisi va zap xoz rollari beriladi.");
         return;
     }
     if (state.users.some((user) => String(user.login || "").toLowerCase() === login.toLowerCase())) {
         flash("#userMessage", "Bu login oldin kiritilgan.");
+        return;
+    }
+    const assignedClass = normalizeAssignedClasses(value("#userClass"));
+    if (role === "teacher" && assignedClasses({ assignedClass }).length > 2) {
+        flash("#userMessage", "O'qituvchiga ko'pi bilan 2 ta sinf biriktiriladi.");
         return;
     }
 
@@ -413,7 +431,8 @@ document.querySelector("#userForm").addEventListener("submit", (event) => {
         password: value("#userPassword"),
         role,
         responsibility: roleResponsibilities[role] || value("#userResponsibility"),
-        assignedClass: normalizeAssignedClasses(value("#userClass"))
+        assignedClass: role === "dormitory" ? "" : assignedClass,
+        dormitoryGender: role === "dormitory" ? value("#userDormitoryGender") : ""
     });
 
     saveAndRender(event.target, "#userMessage", "Rol saqlandi.");
@@ -484,6 +503,7 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
         quantity: value("#expenseQuantity"),
         amount,
         expenseDate: value("#expenseDate") || currentDate,
+        createdById: currentUser.id,
         createdBy: currentUser.fullName,
         createdAt: new Date().toISOString()
     });
@@ -637,6 +657,10 @@ document.querySelector("#paymentClass")?.addEventListener("change", () => {
     renderPaymentStudentOptions();
     fillRequiredPayment();
 });
+document.querySelector("#paymentStudentSearch")?.addEventListener("input", () => {
+    renderPaymentStudentOptions();
+    fillRequiredPayment();
+});
 document.querySelector("#paymentStudent")?.addEventListener("change", fillRequiredPayment);
 document.querySelector("#paymentCategory")?.addEventListener("change", fillRequiredPayment);
 document.querySelector("#dormitoryPaymentButton")?.addEventListener("click", () => {
@@ -645,6 +669,7 @@ document.querySelector("#dormitoryPaymentButton")?.addEventListener("click", () 
     setValue("#paymentPaid", numberValue("#paymentPaid") + DORMITORY_FEE);
 });
 document.querySelector("#financeClassFilter")?.addEventListener("change", renderFinancePaymentsTable);
+document.querySelector("#financePaymentSearch")?.addEventListener("input", renderFinancePaymentsTable);
 document.querySelector("#studentClassFilter")?.addEventListener("change", renderStudentByClassSection);
 document.querySelector("#attendanceClass")?.addEventListener("change", renderAttendance);
 document.querySelector("#attendanceDate")?.addEventListener("change", renderAttendance);
@@ -671,8 +696,11 @@ function renderApp() {
     document.querySelector("#welcomeTitle").textContent = `${roleText} dashboard`;
     document.querySelector("#roleChip").textContent = roleText;
     document.querySelector("#sidebarRole").textContent = roleText;
-    document.querySelector("#sidebarUser").textContent = currentUser.assignedClass
-        ? `${currentUser.fullName} - ${currentUser.assignedClass} sinf`
+    const userAssignment = currentUser.role === "dormitory"
+        ? currentUser.dormitoryGender
+        : currentUser.assignedClass;
+    document.querySelector("#sidebarUser").textContent = userAssignment
+        ? `${currentUser.fullName} - ${userAssignment}`
         : currentUser.fullName;
 
     document.querySelector("#studentCount").textContent = state.students.length;
@@ -825,7 +853,7 @@ function setActiveView(viewName) {
 function applyPermissions() {
     toggleForm("#studentForm", can("students"));
     toggleForm("#attendanceForm", can("attendance"));
-    toggleForm(".dormitory-attendance-form", can("attendance"));
+    toggleForm(".dormitory-attendance-form", can("dormitoryAttendance"));
     toggleForm("#admissionForm", can("admissions"));
     toggleForm("#paymentForm", can("finance"));
     toggleForm("#salaryReportForm", can("salaryReports"));
@@ -887,6 +915,17 @@ function renderRoleResponsibilityOptions() {
     const role = roleSelect.value || "accountant";
     responsibilitySelect.innerHTML = "";
     responsibilitySelect.append(new Option(roleResponsibilities[role] || "Bo'lim tanlanmagan", roleResponsibilities[role] || ""));
+
+    const classInput = document.querySelector("#userClass");
+    const dormitoryGenderWrap = document.querySelector("#userDormitoryGenderWrap");
+    if (classInput) {
+        classInput.disabled = role === "dormitory";
+        classInput.placeholder = role === "teacher"
+            ? "O'qituvchi uchun 2 tagacha: 5-A, 7-A"
+            : "Masalan: 5-A, 7-A";
+        if (role === "dormitory") classInput.value = "";
+    }
+    dormitoryGenderWrap?.classList.toggle("is-hidden", role !== "dormitory");
 }
 
 function renderFinanceClassFilter() {
@@ -904,9 +943,11 @@ function renderPaymentStudentOptions() {
     const className = value("#paymentClass");
     const select = document.querySelector("#paymentStudent");
     const previous = select.value;
+    const search = normalizeSearch(value("#paymentStudentSearch"));
     select.innerHTML = "";
     getVisibleStudents()
         .filter((student) => student.className === className)
+        .filter((student) => !search || normalizeSearch(student.name).includes(search))
         .forEach((student) => select.append(new Option(student.name, student.id)));
     if ([...select.options].some((option) => option.value === previous)) select.value = previous;
 }
@@ -918,6 +959,8 @@ function fillRequiredPayment() {
             ? (student.dormitoryFee || DORMITORY_FEE)
             : (student.monthlyFee || defaultMonthlyFee(student.className));
         setValue("#paymentRequired", amount || 0);
+    } else {
+        setValue("#paymentRequired", 0);
     }
 }
 
@@ -1561,13 +1604,18 @@ function renderDormitoryAttendance() {
         const table = document.querySelector(config.table);
         const badge = document.querySelector(config.badge);
         if (!table || !badge) return;
+        const panel = table.closest("article");
+        const assignedGender = currentUser?.dormitoryGender || "";
+        const isRestrictedDormitoryUser = currentUser?.role === "dormitory" && assignedGender !== config.gender;
+        panel?.classList.toggle("is-hidden", isRestrictedDormitoryUser);
+        if (isRestrictedDormitoryUser) return;
 
         const date = value(config.date) || currentDate;
         const students = getVisibleStudents()
             .filter((student) => student.gender === config.gender)
+            .filter((student) => student.dormitory)
             .sort((first, second) => String(first.className || "").localeCompare(String(second.className || "")));
-        const dormitoryCount = students.filter((student) => student.dormitory).length;
-        badge.textContent = `${dormitoryCount} ta`;
+        badge.textContent = `${students.length} ta`;
         table.innerHTML = "";
 
         students.forEach((student, index) => {
@@ -1630,14 +1678,17 @@ function renderUsers() {
     if (!table) return;
 
     table.innerHTML = "";
-    state.users.filter((user) => ["admin", "accountant", "zauch", "teacher", "warehouse"].includes(user.role)).forEach((user) => {
+    state.users.filter((user) => ["admin", "accountant", "zauch", "teacher", "dormitory", "warehouse"].includes(user.role)).forEach((user) => {
         const row = document.createElement("tr");
+        const assignment = user.role === "dormitory"
+            ? (user.dormitoryGender || "-")
+            : (user.assignedClass || "-");
         row.innerHTML = `
             <td>${escapeHtml(user.fullName)}</td>
             <td>${escapeHtml(user.login)}</td>
             <td>${escapeHtml(roleNames[user.role] || user.role)}</td>
             <td>${escapeHtml(user.responsibility || roleResponsibilities[user.role] || "-")}</td>
-            <td>${escapeHtml(user.assignedClass || "-")}</td>
+            <td>${escapeHtml(assignment)}</td>
             <td></td>
         `;
         const actionCell = row.querySelector("td:last-child");
@@ -1710,7 +1761,7 @@ function renderFinance() {
     `;
 
     table.innerHTML = "";
-    state.finance.slice().reverse().forEach((item, index) => {
+    getVisibleFinanceExpenses().slice().reverse().forEach((item, index) => {
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>${escapeHtml(item.title || "Izoh yo'q")}</td>
@@ -1732,10 +1783,12 @@ function renderFinance() {
 function renderFinancePaymentsTable() {
     const table = document.querySelector("#financePaymentsTable");
     const classFilter = value("#financeClassFilter") || "all";
+    const search = normalizeSearch(value("#financePaymentSearch"));
     table.innerHTML = "";
 
     getVisiblePayments()
         .filter((payment) => classFilter === "all" || payment.className === classFilter)
+        .filter((payment) => !search || normalizeSearch(payment.studentName).includes(search))
         .forEach((payment, index) => {
             const row = document.createElement("tr");
             row.innerHTML = `
@@ -1824,6 +1877,7 @@ function approvePendingExpense(id) {
         quantity: "",
         amount: Number(item.amount || 0),
         expenseDate: item.expenseDate || currentDate,
+        createdById: item.createdById || "",
         createdBy: item.createdBy || currentUser.fullName,
         approvedBy: currentUser.fullName,
         createdAt: item.createdAt || new Date().toISOString()
@@ -2183,6 +2237,27 @@ function openInlineEditModal({ title, description = "Ma'lumotlarni tizim ichida 
     });
 
     document.body.append(overlay);
+    return overlay;
+}
+
+function setupUserRoleModalFields(modal) {
+    const roleSelect = modal?.querySelector('[name="role"]');
+    const assignedClassInput = modal?.querySelector('[name="assignedClass"]');
+    const dormitoryGenderSelect = modal?.querySelector('[name="dormitoryGender"]');
+    const assignedClassLabel = assignedClassInput?.closest("label");
+    const dormitoryGenderLabel = dormitoryGenderSelect?.closest("label");
+    if (!roleSelect || !assignedClassInput || !dormitoryGenderSelect) return;
+
+    const sync = () => {
+        const isDormitory = roleSelect.value === "dormitory";
+        assignedClassLabel?.classList.toggle("is-hidden", isDormitory);
+        dormitoryGenderLabel?.classList.toggle("is-hidden", !isDormitory);
+        assignedClassInput.disabled = isDormitory;
+        if (isDormitory) assignedClassInput.value = "";
+    };
+
+    roleSelect.addEventListener("change", sync);
+    sync();
 }
 
 function editRecord(collection, id) {
@@ -2237,15 +2312,16 @@ function editRecord(collection, id) {
         return;
     }
     if (collection === "users") {
-        openInlineEditModal({
+        const modal = openInlineEditModal({
             title: "Rolni tahrirlash",
             description: "Bitta ustozga bir nechta sinf berish uchun sinflarni vergul bilan yozing: 5-A, 7-A.",
             fields: [
                 { name: "fullName", label: "F.I.Sh", type: "text", value: item.fullName || "" },
                 { name: "login", label: "Login", type: "text", value: item.login || "" },
                 { name: "password", label: "Parol", type: "text", value: item.password || "" },
-                { name: "role", label: "Rol", type: "select", value: item.role || "teacher", options: ["admin", "accountant", "zauch", "teacher", "warehouse"] },
-                { name: "assignedClass", label: "Biriktirilgan sinflar (masalan: 5-A, 7-A)", type: "text", value: item.assignedClass || "" }
+                { name: "role", label: "Rol", type: "select", value: item.role || "teacher", options: ["admin", "accountant", "zauch", "teacher", "dormitory", "warehouse"] },
+                { name: "assignedClass", label: "Biriktirilgan sinflar (o'qituvchi uchun 2 tagacha)", type: "text", value: item.assignedClass || "" },
+                { name: "dormitoryGender", label: "Yotoqxona guruhi", type: "select", value: item.dormitoryGender || "O'g'il bola", options: ["O'g'il bola", "Qiz bola"] }
             ],
             onSave: (data, message) => {
                 const duplicate = state.users.some((user) =>
@@ -2255,17 +2331,24 @@ function editRecord(collection, id) {
                     message.textContent = "Bu login boshqa xodimda mavjud.";
                     return false;
                 }
+                const assignedClass = normalizeAssignedClasses(data.assignedClass);
+                if (data.role === "teacher" && assignedClasses({ assignedClass }).length > 2) {
+                    message.textContent = "O'qituvchiga ko'pi bilan 2 ta sinf biriktiriladi.";
+                    return false;
+                }
                 item.fullName = data.fullName;
                 item.login = data.login;
                 item.password = data.password;
                 item.role = data.role;
                 item.responsibility = roleResponsibilities[data.role] || "";
-                item.assignedClass = normalizeAssignedClasses(data.assignedClass);
+                item.assignedClass = data.role === "dormitory" ? "" : assignedClass;
+                item.dormitoryGender = data.role === "dormitory" ? data.dormitoryGender : "";
                 archiveRecord("users", "Rol tahrirlandi", item);
                 saveState();
                 renderApp();
             }
         });
+        setupUserRoleModalFields(modal);
         return;
     }
     if (collection === "admissions") {
@@ -2436,6 +2519,9 @@ function getVisibleStudents() {
     if (currentUser.role === "teacher") {
         return state.students.filter((item) => assignedClasses(currentUser).includes(item.className));
     }
+    if (currentUser.role === "dormitory") {
+        return state.students.filter((item) => item.gender === currentUser.dormitoryGender);
+    }
     return state.students;
 }
 
@@ -2445,6 +2531,18 @@ function getVisiblePayments() {
         return state.payments.filter((item) => assignedClasses(currentUser).includes(item.className) || item.teacherId === currentUser.id);
     }
     return state.payments;
+}
+
+function getVisibleFinanceExpenses() {
+    if (!currentUser) return [];
+    const expenses = state.finance.filter((item) => item.type === "Rasxod");
+    if (currentUser.role === "accountant") {
+        return expenses.filter((item) =>
+            item.createdById === currentUser.id ||
+            (!item.createdById && item.createdBy === currentUser.fullName)
+        );
+    }
+    return expenses;
 }
 
 function getVisibleSchedules() {
@@ -2501,6 +2599,10 @@ function assignedClasses(user = {}) {
         .filter(Boolean);
 }
 
+function normalizeSearch(text = "") {
+    return String(text || "").trim().toLowerCase();
+}
+
 function can(permission) {
     return currentUser && (permissions[currentUser.role] || []).includes(permission);
 }
@@ -2531,7 +2633,7 @@ function sectionPermission(id) {
         monthlyPayments: "finance",
         expenses: "finance",
         attendance: "attendance",
-        dormitory: "attendance",
+        dormitory: "dormitoryAttendance",
         admissions: "admissions",
         archive: "roles",
         staff: "services",
@@ -2687,6 +2789,7 @@ function normalizeState(base = {}) {
         : [];
     const users = Array.isArray(base.users) ? base.users.map((user) => ({
         subject: "",
+        dormitoryGender: "",
         responsibility: roleResponsibilities[user.role] || "",
         ...user,
         responsibility: user.responsibility || roleResponsibilities[user.role] || ""
@@ -2734,6 +2837,7 @@ function normalizeState(base = {}) {
         archive,
         finance: Array.isArray(base.finance) ? base.finance.map((item) => ({
             quantity: "",
+            createdById: "",
             expenseDate: String(item.createdAt || "").slice(0, 10),
             ...item
         })) : [],

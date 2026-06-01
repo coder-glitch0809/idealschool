@@ -323,7 +323,7 @@
                                     <th>Qarz</th>
                                     <th>Avans turi</th>
                                     <th>Beriladi</th>
-                                    <th>Amal</th>
+                                    <th>Izox</th>
                                 </tr>
                             </thead>
                             <tbody id="salaryReportList"></tbody>
@@ -533,7 +533,7 @@
                             <tr>
                                 <th>No</th>
                                 <th>F.I.Sh</th>
-                                <th>Sinf</th>
+                                <th>Biriktirish</th>
                                 <th>Telefon</th>
                                 <th>Holati</th>
                                 <th>Sana</th>
@@ -664,6 +664,7 @@
                             <option value="accountant">Bugalter</option>
                             <option value="zauch">Zauch</option>
                             <option value="teacher">O'qituvchi</option>
+                            <option value="dormitory">Yotoqxona tarbiyachisi</option>
                             <option value="warehouse">Zap xoz</option>
                         </select>
                     </label>
@@ -673,7 +674,14 @@
                     </label>
                     <label>
                         Biriktirilgan sinflar
-                        <input id="userClass" type="text" placeholder="O'qituvchi uchun: 5-A, 7-A">
+                        <input id="userClass" type="text" placeholder="O'qituvchi uchun 2 tagacha: 5-A, 7-A">
+                    </label>
+                    <label id="userDormitoryGenderWrap" class="is-hidden">
+                        Yotoqxona guruhi
+                        <select id="userDormitoryGender">
+                            <option value="O'g'il bola">O'g'il bolalar</option>
+                            <option value="Qiz bola">Qiz bolalar</option>
+                        </select>
                     </label>
                     <button type="submit">Xodimni saqlash</button>
                     <p class="form-message" id="userMessage" aria-live="polite"></p>
@@ -691,7 +699,7 @@
                                 <th>Login</th>
                                 <th>Rol</th>
                                 <th>Javobgar bo'lim</th>
-                                <th>Sinf</th>
+                                <th>Biriktirish</th>
                                 <th>Amal</th>
                             </tr>
                         </thead>
@@ -752,6 +760,10 @@
                         <label>
                             Sinf
                             <select id="paymentClass" required></select>
+                        </label>
+                        <label>
+                            O'quvchini qidirish
+                            <input id="paymentStudentSearch" type="search" placeholder="Ism yoki familiya">
                         </label>
                         <label>
                             O'quvchi
@@ -857,6 +869,10 @@
                     <label>
                         Sinf filter
                         <select id="financeClassFilter"></select>
+                    </label>
+                    <label>
+                        O'quvchini qidirish
+                        <input id="financePaymentSearch" type="search" placeholder="Ism yoki familiya">
                     </label>
                     <div class="table-wrap compact-table">
                         <table class="report-table">
