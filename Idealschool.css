@@ -793,6 +793,15 @@ form,
     min-width: 0;
 }
 
+.wide-form > .table-wrap {
+    grid-column: 1 / -1;
+}
+
+.dormitory-attendance-form > .table-wrap {
+    max-height: calc(100vh - 310px);
+    min-height: 320px;
+}
+
 label {
     color: #34425f;
     display: grid;

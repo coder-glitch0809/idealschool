@@ -2,6 +2,11 @@ const STORAGE_KEY = "idealSchoolPlatformData";
 const THEME_KEY = "idealSchoolTheme";
 const DORMITORY_FEE = 300000;
 const ARCHIVE_POLICY_VERSION = "monthly-archive-v1";
+const SCHOOL_LOCATION = {
+    latitude: 40.437865,
+    longitude: 70.605491,
+    radiusMeters: 100
+};
 
 const defaultUsers = [
     {
@@ -218,7 +223,7 @@ document.querySelector("#studentForm").addEventListener("submit", (event) => {
     saveAndRender(event.target, "#studentMessage", "O'quvchi saqlandi.");
 });
 
-document.querySelector("#attendanceForm")?.addEventListener("submit", (event) => {
+document.querySelector("#attendanceForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!can("attendance")) return;
 
@@ -227,6 +232,12 @@ document.querySelector("#attendanceForm")?.addEventListener("submit", (event) =>
     const rows = [...document.querySelectorAll("#attendanceTable tr[data-student-id]")];
     if (!className || !rows.length) {
         flash("#attendanceMessage", "Davomat uchun sinf va o'quvchilar mavjud emas.");
+        return;
+    }
+
+    const locationCheck = await verifyAttendanceLocation();
+    if (!locationCheck.allowed) {
+        flash("#attendanceMessage", locationCheck.message);
         return;
     }
 
@@ -244,13 +255,21 @@ document.querySelector("#attendanceForm")?.addEventListener("submit", (event) =>
             status: row.querySelector("select").value,
             teacherId: currentUser.id,
             teacherName: currentUser.fullName,
+            locationDistanceMeters: locationCheck.distanceMeters ?? "",
+            locationLatitude: locationCheck.latitude ?? "",
+            locationLongitude: locationCheck.longitude ?? "",
             updatedAt: new Date().toISOString()
         };
         if (existing) Object.assign(existing, record);
         else state.attendance.push(record);
     });
 
-    archiveRecord("attendance", "Davomat saqlandi", { className, date, teacherName: currentUser.fullName });
+    archiveRecord("attendance", "Davomat saqlandi", {
+        className,
+        date,
+        teacherName: currentUser.fullName,
+        locationDistanceMeters: locationCheck.distanceMeters ?? ""
+    });
     saveState();
     flash("#attendanceMessage", "Davomat saqlandi.");
     renderApp();
@@ -269,6 +288,10 @@ document.querySelectorAll(".dormitory-attendance-form").forEach((form) => {
         const tableSelector = form.dataset.table;
         const messageSelector = form.dataset.message;
         const date = form.querySelector('input[type="date"]')?.value || currentDate;
+        if (currentUser.role === "dormitory" && isDormitoryAttendanceSubmitted(gender, date, currentUser.id)) {
+            flash(messageSelector, "Bugungi yotoqxona davomati topshirilgan. O'zgartirish uchun admin yoki superadminga murojaat qiling.");
+            return;
+        }
         const rows = [...document.querySelectorAll(`${tableSelector} tr[data-student-id]`)];
         const dormitoryRows = rows.filter((row) => row.querySelector("[data-dormitory-check]")?.checked);
         if (!rows.length) {
@@ -1611,11 +1634,14 @@ function renderDormitoryAttendance() {
         if (isRestrictedDormitoryUser) return;
 
         const date = value(config.date) || currentDate;
+        const canManageDormitoryList = canManageDormitory();
+        const submitted = currentUser?.role === "dormitory" && isDormitoryAttendanceSubmitted(config.gender, date, currentUser.id);
         const students = getVisibleStudents()
             .filter((student) => student.gender === config.gender)
-            .filter((student) => student.dormitory)
+            .filter((student) => canManageDormitoryList || student.dormitory)
             .sort((first, second) => String(first.className || "").localeCompare(String(second.className || "")));
-        badge.textContent = `${students.length} ta`;
+        const dormitoryCount = students.filter((student) => student.dormitory).length;
+        badge.textContent = submitted ? `${dormitoryCount} ta | Topshirildi` : `${dormitoryCount} ta`;
         table.innerHTML = "";
 
         students.forEach((student, index) => {
@@ -1627,14 +1653,14 @@ function renderDormitoryAttendance() {
                 <td>${index + 1}</td>
                 <td>
                     <label class="check-row">
-                        <input data-dormitory-check type="checkbox"${student.dormitory ? " checked" : ""} aria-label="${escapeHtml(student.name)} yotoqxonada">
+                        <input data-dormitory-check type="checkbox"${student.dormitory ? " checked" : ""}${canManageDormitoryList ? "" : " disabled"} aria-label="${escapeHtml(student.name)} yotoqxonada">
                         <span>Ha</span>
                     </label>
                 </td>
                 <td>${escapeHtml(student.name)}</td>
                 <td>${escapeHtml(student.className || "-")}</td>
                 <td>
-                    <select aria-label="${escapeHtml(student.name)} yotoqxona davomati">
+                    <select${submitted ? " disabled" : ""} aria-label="${escapeHtml(student.name)} yotoqxona davomati">
                         <option value="Kelgan"${status === "Kelgan" ? " selected" : ""}>Kelgan</option>
                         <option value="Kelmagan"${status === "Kelmagan" ? " selected" : ""}>Kelmagan</option>
                         <option value="Sababli kelmagan"${status === "Sababli kelmagan" || status === "Sababli" ? " selected" : ""}>Sababli kelmagan</option>
@@ -1643,6 +1669,8 @@ function renderDormitoryAttendance() {
             `;
             table.append(row);
         });
+        const submitButton = table.closest("form")?.querySelector('button[type="submit"]');
+        if (submitButton) submitButton.disabled = submitted;
         updateTableWrapVisibility(table);
     });
 }
@@ -1955,6 +1983,22 @@ function todayDormitoryAttendanceTotals() {
     return totals;
 }
 
+function dormitoryTeachers() {
+    return state.users.filter((user) => user.role === "dormitory" && user.dormitoryGender);
+}
+
+function canManageDormitory() {
+    return currentUser?.role === "superadmin" || currentUser?.role === "admin";
+}
+
+function isDormitoryAttendanceSubmitted(gender, date = currentDate, teacherId = "") {
+    return state.dormitoryAttendance.some((item) =>
+        item.date === date &&
+        item.gender === gender &&
+        (!teacherId || item.teacherId === teacherId)
+    );
+}
+
 function renderDormitoryAbsentDashboard() {
     const section = document.querySelector("#dormitoryAbsentPanel");
     const list = document.querySelector("#dormitoryAbsentList");
@@ -1966,11 +2010,39 @@ function renderDormitoryAbsentDashboard() {
     list.innerHTML = "";
     if (!allowed) return;
 
+    const supervisors = dormitoryTeachers();
+    const missingSubmissions = supervisors.filter((teacher) =>
+        state.students.some((student) => student.dormitory && student.gender === teacher.dormitoryGender) &&
+        !isDormitoryAttendanceSubmitted(teacher.dormitoryGender, currentDate, teacher.id)
+    );
+    const submitted = supervisors.filter((teacher) =>
+        isDormitoryAttendanceSubmitted(teacher.dormitoryGender, currentDate, teacher.id)
+    );
     const absentRecords = state.dormitoryAttendance
         .filter((item) => item.date === currentDate && (item.status === "Kelmagan" || item.status === "Sababli" || item.status === "Sababli kelmagan"))
         .filter((item) => state.students.some((student) => student.id === item.studentId && student.dormitory));
 
-    count.textContent = `${absentRecords.length} ta`;
+    count.textContent = `${missingSubmissions.length} topshirmadi | ${absentRecords.length} kelmadi`;
+    missingSubmissions.forEach((teacher) => {
+        const item = document.createElement("div");
+        item.className = "record-item";
+        item.innerHTML = `
+            <strong>${escapeHtml(teacher.dormitoryGender)} yotoqxona davomati topshirilmagan</strong>
+            <span>Tarbiyachi: ${escapeHtml(teacher.fullName || "-")}</span>
+            <small>Bugungi sana: ${escapeHtml(currentDate)}</small>
+        `;
+        list.append(item);
+    });
+    submitted.forEach((teacher) => {
+        const item = document.createElement("div");
+        item.className = "record-item";
+        item.innerHTML = `
+            <strong>${escapeHtml(teacher.dormitoryGender)} yotoqxona davomati topshirildi</strong>
+            <span>Tarbiyachi: ${escapeHtml(teacher.fullName || "-")}</span>
+            <small>Bugungi sana: ${escapeHtml(currentDate)}</small>
+        `;
+        list.append(item);
+    });
     absentRecords.forEach((item) => {
         list.append(recordItem({
             title: `${item.studentName} - ${item.status}`,
@@ -2311,6 +2383,24 @@ function editRecord(collection, id) {
         });
         return;
     }
+    if (collection === "dormitoryAttendance") {
+        openInlineEditModal({
+            title: "Yotoqxona davomatini tahrirlash",
+            fields: [
+                { name: "status", label: "Holati", type: "select", value: item.status || "Kelgan", options: ["Kelgan", "Kelmagan", "Sababli kelmagan"] },
+                { name: "date", label: "Sana", type: "date", value: item.date || currentDate }
+            ],
+            onSave: (data) => {
+                item.status = data.status;
+                item.date = data.date || currentDate;
+                item.updatedAt = new Date().toISOString();
+                archiveRecord("dormitoryAttendance", "Yotoqxona davomati tahrirlandi", item);
+                saveState();
+                renderApp();
+            }
+        });
+        return;
+    }
     if (collection === "users") {
         const modal = openInlineEditModal({
             title: "Rolni tahrirlash",
@@ -2603,6 +2693,90 @@ function normalizeSearch(text = "") {
     return String(text || "").trim().toLowerCase();
 }
 
+async function verifyAttendanceLocation() {
+    if (currentUser?.role !== "teacher") {
+        return { allowed: true };
+    }
+    if (!navigator.geolocation) {
+        return {
+            allowed: false,
+            message: "Bu qurilmada geolokatsiya ishlamaydi. Davomatni maktab hududida topshirish uchun lokatsiya kerak."
+        };
+    }
+
+    flash("#attendanceMessage", "Lokatsiya tekshirilmoqda. Ruxsat bering...");
+
+    try {
+        const position = await requestCurrentPosition();
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const distanceMeters = Math.round(distanceBetweenMeters(
+            latitude,
+            longitude,
+            SCHOOL_LOCATION.latitude,
+            SCHOOL_LOCATION.longitude
+        ));
+
+        if (distanceMeters > SCHOOL_LOCATION.radiusMeters) {
+            return {
+                allowed: false,
+                message: `Davomat faqat maktab atrofida olinadi. Siz maktabdan taxminan ${distanceMeters} metr uzoqdasiz.`
+            };
+        }
+
+        return {
+            allowed: true,
+            latitude,
+            longitude,
+            distanceMeters
+        };
+    } catch (error) {
+        return {
+            allowed: false,
+            message: geolocationErrorMessage(error)
+        };
+    }
+}
+
+function requestCurrentPosition() {
+    return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 15000
+        });
+    });
+}
+
+function distanceBetweenMeters(firstLat, firstLng, secondLat, secondLng) {
+    const earthRadiusMeters = 6371000;
+    const firstLatRad = degreesToRadians(firstLat);
+    const secondLatRad = degreesToRadians(secondLat);
+    const deltaLat = degreesToRadians(secondLat - firstLat);
+    const deltaLng = degreesToRadians(secondLng - firstLng);
+    const a = Math.sin(deltaLat / 2) ** 2 +
+        Math.cos(firstLatRad) * Math.cos(secondLatRad) *
+        Math.sin(deltaLng / 2) ** 2;
+    return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function degreesToRadians(value) {
+    return Number(value || 0) * Math.PI / 180;
+}
+
+function geolocationErrorMessage(error = {}) {
+    if (error.code === 1) {
+        return "Lokatsiyaga ruxsat berilmasa davomat saqlanmaydi.";
+    }
+    if (error.code === 2) {
+        return "Lokatsiyani aniqlab bo'lmadi. Internet/GPSni yoqib qayta urinib ko'ring.";
+    }
+    if (error.code === 3) {
+        return "Lokatsiyani aniqlash vaqti tugadi. Qayta urinib ko'ring.";
+    }
+    return "Lokatsiya tekshiruvida xatolik bo'ldi. Qayta urinib ko'ring.";
+}
+
 function can(permission) {
     return currentUser && (permissions[currentUser.role] || []).includes(permission);
 }
@@ -2644,6 +2818,8 @@ function sectionPermission(id) {
 }
 
 function canEditCollection(collection) {
+    if (collection === "dormitoryAttendance") return canManageDormitory();
+
     const map = {
         payments: "finance",
         students: "students",
