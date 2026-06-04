@@ -36,6 +36,11 @@ app.get("/runtime", (req, res) => {
     res.sendFile(path.join(__dirname, "dist", "app.js"));
 });
 
+app.get("/skin", (req, res) => {
+    res.type("text/css");
+    res.sendFile(path.join(__dirname, "dist", "skin.css"));
+});
+
 app.use(express.static(__dirname, {
     dotfiles: "ignore",
     index: false

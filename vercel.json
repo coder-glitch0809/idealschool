@@ -44,6 +44,10 @@
       "dest": "/dist/app.js"
     },
     {
+      "src": "/skin",
+      "dest": "/dist/skin.css"
+    },
+    {
       "src": "/(.*\\.(?:css|js|jpg|jpeg|png|webp|svg|ico|json|txt))",
       "dest": "/$1"
     },
