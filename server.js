@@ -15,7 +15,11 @@ app.use(express.json({ limit: "2mb" }));
 app.use((req, res, next) => {
     const blockedPaths = [
         /^\/src(?:\/|$)/,
+        /^\/scripts(?:\/|$)/,
+        /^\/dist(?:\/|$)/,
         /^\/node_modules(?:\/|$)/,
+        /^\/api\/.*\.js$/,
+        /^\/Idealschool\.css$/,
         /^\/(?:package(?:-lock)?|tsconfig|database\.schema|firebase-config\.example)\.(?:json|md|js)$/,
         /^\/(?:server|vercel)\.js(?:on)?$/
     ];
@@ -25,6 +29,11 @@ app.use((req, res, next) => {
     }
 
     next();
+});
+
+app.get("/runtime", (req, res) => {
+    res.type("application/javascript");
+    res.sendFile(path.join(__dirname, "dist", "app.js"));
 });
 
 app.use(express.static(__dirname, {

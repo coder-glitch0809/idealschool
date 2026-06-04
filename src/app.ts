@@ -1,5 +1,9 @@
 import { appTemplate } from "./template";
+import { appStyles } from "./styles";
 
+const styleElement = document.createElement("style");
+styleElement.textContent = appStyles;
+document.head.append(styleElement);
 document.body.insertAdjacentHTML("afterbegin", appTemplate);
 
 const STORAGE_KEY = "idealSchoolPlatformData";

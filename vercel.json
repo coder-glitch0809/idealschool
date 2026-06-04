@@ -12,7 +12,19 @@
   ],
   "routes": [
     {
-      "src": "/(?:src|node_modules)(?:/.*)?",
+      "src": "/(?:src|scripts|node_modules)(?:/.*)?",
+      "status": 404
+    },
+    {
+      "src": "/api/.*\\.js",
+      "status": 404
+    },
+    {
+      "src": "/dist(?:/.*)?",
+      "status": 404
+    },
+    {
+      "src": "/Idealschool\\.css",
       "status": 404
     },
     {
@@ -26,6 +38,10 @@
     {
       "src": "/api/platform",
       "dest": "/api/platform.js"
+    },
+    {
+      "src": "/runtime",
+      "dest": "/dist/app.js"
     },
     {
       "src": "/(.*\\.(?:css|js|jpg|jpeg|png|webp|svg|ico|json|txt))",

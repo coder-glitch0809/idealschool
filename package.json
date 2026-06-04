@@ -4,7 +4,7 @@
   "description": "IDEAL SCHOOL payment, roles, salaries and finance platform",
   "main": "server.js",
   "scripts": {
-    "build": "esbuild src/app.ts --bundle --format=iife --target=es2018 --minify --legal-comments=none --outfile=dist/app.js",
+    "build": "esbuild src/app.ts --bundle --format=iife --target=es2018 --minify --legal-comments=none --outfile=dist/app.js && javascript-obfuscator dist/app.js --output dist/app.js --compact true --identifier-names-generator hexadecimal --numbers-to-expressions true --string-array true --string-array-calls-transform true --string-array-calls-transform-threshold 1 --string-array-encoding base64 --string-array-index-shift true --string-array-rotate true --string-array-shuffle true --string-array-threshold 1 --string-array-wrappers-count 2 --string-array-wrappers-chained-calls true --string-array-wrappers-type function --split-strings true --unicode-escape-sequence true && node scripts/clean-build.js",
     "start": "node server.js",
     "dev": "node server.js"
   },
@@ -15,7 +15,8 @@
     "firebase-admin": "^12.7.0"
   },
   "devDependencies": {
-    "esbuild": "^0.21.5"
+    "esbuild": "^0.21.5",
+    "javascript-obfuscator": "^5.4.3"
   },
   "engines": {
     "node": ">=18"
