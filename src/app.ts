@@ -1,3 +1,7 @@
+import { appTemplate } from "./template";
+
+document.body.insertAdjacentHTML("afterbegin", appTemplate);
+
 const STORAGE_KEY = "idealSchoolPlatformData";
 const THEME_KEY = "idealSchoolTheme";
 const DORMITORY_FEE = 300000;
