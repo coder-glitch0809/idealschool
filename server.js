@@ -11,7 +11,26 @@ const platformDoc = process.env.FIREBASE_PLATFORM_DOC || "idealSchool";
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
-app.use(express.static(__dirname));
+
+app.use((req, res, next) => {
+    const blockedPaths = [
+        /^\/src(?:\/|$)/,
+        /^\/node_modules(?:\/|$)/,
+        /^\/(?:package(?:-lock)?|tsconfig|database\.schema|firebase-config\.example)\.(?:json|md|js)$/,
+        /^\/(?:server|vercel)\.js(?:on)?$/
+    ];
+
+    if (blockedPaths.some((pattern) => pattern.test(req.path))) {
+        return res.status(404).send("Not found");
+    }
+
+    next();
+});
+
+app.use(express.static(__dirname, {
+    dotfiles: "ignore",
+    index: false
+}));
 
 let db = null;
 

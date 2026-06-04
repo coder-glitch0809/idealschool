@@ -2966,7 +2966,6 @@ function normalizeState(base = {}) {
     const users = Array.isArray(base.users) ? base.users.map((user) => ({
         subject: "",
         dormitoryGender: "",
-        responsibility: roleResponsibilities[user.role] || "",
         ...user,
         responsibility: user.responsibility || roleResponsibilities[user.role] || ""
     })) : [];
@@ -2987,7 +2986,6 @@ function normalizeState(base = {}) {
             salaryAmount: 0,
             advance: 0,
             loan: Number(report.loan || 0),
-            advanceType: "Bank orqali",
             paymentTarget: "Bank karta",
             bankCard: "",
             calculatedSalary: 0,

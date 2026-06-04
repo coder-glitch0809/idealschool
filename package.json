@@ -4,7 +4,7 @@
   "description": "IDEAL SCHOOL payment, roles, salaries and finance platform",
   "main": "server.js",
   "scripts": {
-    "build": "echo Static site ready",
+    "build": "esbuild src/app.ts --bundle --format=iife --target=es2018 --minify --legal-comments=none --outfile=dist/app.js",
     "start": "node server.js",
     "dev": "node server.js"
   },
@@ -13,6 +13,9 @@
     "dotenv": "^16.4.7",
     "express": "^4.18.3",
     "firebase-admin": "^12.7.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5"
   },
   "engines": {
     "node": ">=18"

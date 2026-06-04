@@ -12,6 +12,18 @@
   ],
   "routes": [
     {
+      "src": "/(?:src|node_modules)(?:/.*)?",
+      "status": 404
+    },
+    {
+      "src": "/(?:package(?:-lock)?|tsconfig|database\\.schema|firebase-config\\.example)\\.(?:json|md|js)",
+      "status": 404
+    },
+    {
+      "src": "/(?:server|vercel)\\.js(?:on)?",
+      "status": 404
+    },
+    {
       "src": "/api/platform",
       "dest": "/api/platform.js"
     },
