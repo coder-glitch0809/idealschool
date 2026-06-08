@@ -14,6 +14,7 @@ Collections are stored as arrays inside the document for the current frontend ve
 - `finance`: `type`, `title`, `amount`, `createdBy`
 - `services`: `type`, `driverName`, `salary`, `advance`, `createdBy`
 - `staffSalaries`: `name`, `job`, `month`, `salary`, `advance`, `createdBy`
+- `libraryRecords`: `bookTitle`, `author`, `className`, `studentName`, `quantity`, `issueDate`, `returnDate`, `status`, `note`, `createdBy`
 
 Roles:
 
@@ -22,4 +23,5 @@ Roles:
 - `zauch`: salaryReports, students, payments, salaries, tutors
 - `accountant`: payments, finance, students, founders
 - `teacher`: own class students and payments
+- `librarian`: library book issue records by class
 - `staff`: services

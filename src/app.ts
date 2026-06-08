@@ -1,6 +1,7 @@
 import { appTemplate } from "./template";
 
 document.body.insertAdjacentHTML("afterbegin", appTemplate);
+ensureLibrarySection();
 
 const STORAGE_KEY = "idealSchoolPlatformData";
 const THEME_KEY = "idealSchoolTheme";
@@ -28,6 +29,7 @@ const roleNames = {
     admin: "Admin",
     zauch: "Zauch",
     teacher: "O'qituvchi",
+    librarian: "Kutubxonachi",
     dormitory: "Yotoqxona tarbiyachisi",
     accountant: "Bugalter",
     warehouse: "Zap xoz",
@@ -39,25 +41,28 @@ const roleResponsibilities = {
     accountant: "Moliya",
     zauch: "Zauch bo'limi",
     teacher: "O'quvchilar",
+    librarian: "Kutubxona",
     dormitory: "Yotoqxona",
     warehouse: "Zap xoz"
 };
 
 const responsibilitySections = {
-    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "dormitory", "admissions", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "archive"],
+    "Barcha bo'limlar": ["dashboard", "zauchPanel", "zauch", "staff", "buses", "students", "teachers", "attendance", "dormitory", "library", "admissions", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "archive"],
     "Moliya": ["monthlyPayments", "expenses"],
     "Zauch bo'limi": ["zauchPanel", "zauch", "salaries", "tutors", "students", "teachers", "attendance", "dormitory"],
     "O'quvchilar": ["students", "teachers", "attendance"],
+    "Kutubxona": ["library"],
     "Yotoqxona": ["dormitory"],
     "Zap xoz": ["staff", "buses"]
 };
 
 const permissions = {
-    superadmin: ["students", "attendance", "dormitoryAttendance", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
-    admin: ["students", "attendance", "dormitoryAttendance", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
+    superadmin: ["students", "attendance", "dormitoryAttendance", "library", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
+    admin: ["students", "attendance", "dormitoryAttendance", "library", "admissions", "salaryReports", "roles", "teachers", "finance", "services", "payments", "salaries", "tutors", "founders"],
     zauch: ["students", "attendance", "salaryReports", "teachers", "salaries", "tutors"],
     accountant: ["finance"],
     warehouse: ["services"],
+    librarian: ["library"],
     teacher: ["students", "attendance"],
     dormitory: ["dormitoryAttendance"],
     staff: ["services"]
@@ -114,10 +119,11 @@ setValue("#staffMonth", currentMonth);
 setValue("#paymentDate", currentDate);
 setValue("#expenseDate", currentDate);
 setValue("#pendingExpenseDate", currentDate);
-    setValue("#attendanceDate", currentDate);
+setValue("#attendanceDate", currentDate);
 setValue("#dormitoryBoysDate", currentDate);
 setValue("#dormitoryGirlsDate", currentDate);
 setValue("#admissionDate", currentDate);
+setValue("#libraryIssueDate", currentDate);
 applyTheme(localStorage.getItem(THEME_KEY) || "light");
 initFirebaseBackend();
 loadStateFromServer();
@@ -377,7 +383,10 @@ document.querySelector("#salaryReportForm").addEventListener("submit", (event) =
 
     const salary = salaryReportTotals({
         salaryAmount: numberValue("#salaryReportSalary"),
-        advance: numberValue("#salaryReportAdvance")
+        advance: numberValue("#salaryReportAdvance"),
+        loan: numberValue("#salaryReportLoan"),
+        incomeTax: numberValue("#salaryReportIncomeTax"),
+        salaryPaymentType: value("#salaryReportPaymentType")
     });
 
     state.salaryReports.push({
@@ -391,7 +400,9 @@ document.querySelector("#salaryReportForm").addEventListener("submit", (event) =
         salaryAmount: numberValue("#salaryReportSalary"),
         advance: numberValue("#salaryReportAdvance"),
         loan: numberValue("#salaryReportLoan"),
+        incomeTax: numberValue("#salaryReportIncomeTax"),
         advanceType: value("#salaryReportAdvanceType"),
+        salaryPaymentType: value("#salaryReportPaymentType"),
         paymentTarget: "",
         bankCard: "",
         calculatedSalary: salary.total,
@@ -436,9 +447,9 @@ document.querySelector("#userForm").addEventListener("submit", (event) => {
 
     const login = value("#userLogin");
     const role = value("#userRole");
-    const allowedAssignableRoles = ["admin", "accountant", "zauch", "teacher", "dormitory", "warehouse"];
+    const allowedAssignableRoles = ["admin", "accountant", "zauch", "teacher", "librarian", "dormitory", "warehouse"];
     if (!allowedAssignableRoles.includes(role)) {
-        flash("#userMessage", "Faqat admin, bugalter, zauch, o'qituvchi, yotoqxona tarbiyachisi va zap xoz rollari beriladi.");
+        flash("#userMessage", "Faqat admin, bugalter, zauch, o'qituvchi, kutubxonachi, yotoqxona tarbiyachisi va zap xoz rollari beriladi.");
         return;
     }
     if (state.users.some((user) => String(user.login || "").toLowerCase() === login.toLowerCase())) {
@@ -591,6 +602,30 @@ document.querySelector("#pendingExpenseForm")?.addEventListener("submit", (event
     setValue("#pendingExpenseDate", currentDate);
 });
 
+document.querySelector("#libraryForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!can("library")) return;
+
+    state.libraryRecords.push({
+        id: createId("library"),
+        bookTitle: value("#libraryBookTitle"),
+        author: value("#libraryAuthor"),
+        className: normalizeClass(value("#libraryClassName")),
+        studentName: value("#libraryStudentName"),
+        quantity: Math.max(numberValue("#libraryQuantity") || 1, 1),
+        issueDate: value("#libraryIssueDate") || currentDate,
+        returnDate: value("#libraryReturnDate"),
+        status: value("#libraryStatus"),
+        note: value("#libraryNote"),
+        createdById: currentUser.id,
+        createdBy: currentUser.fullName,
+        createdAt: new Date().toISOString()
+    });
+
+    saveAndRender(event.target, "#libraryMessage", "Kutubxona yozuvi saqlandi.");
+    setValue("#libraryIssueDate", currentDate);
+});
+
 document.querySelector("#feeSettingsForm").addEventListener("submit", (event) => {
     event.preventDefault();
     if (!can("finance")) return;
@@ -653,7 +688,9 @@ document.querySelector("#serviceForm").addEventListener("submit", (event) => {
         job: value("#serviceJob") || "haydovchi",
         salary: numberValue("#serviceSalary"),
         advance: numberValue("#serviceAdvance"),
+        incomeTax: numberValue("#serviceIncomeTax"),
         advanceType: value("#serviceAdvanceType"),
+        salaryPaymentType: value("#servicePaymentType"),
         createdBy: currentUser.fullName
     });
 
@@ -672,7 +709,9 @@ document.querySelector("#staffSalaryForm").addEventListener("submit", (event) =>
         salary: numberValue("#staffSalary"),
         fine: numberValue("#staffFine"),
         advance: numberValue("#staffAdvance"),
+        incomeTax: numberValue("#staffIncomeTax"),
         advanceType: value("#staffAdvanceType"),
+        salaryPaymentType: value("#staffPaymentType"),
         createdBy: currentUser.fullName
     });
 
@@ -697,6 +736,8 @@ document.querySelector("#dormitoryPaymentButton")?.addEventListener("click", () 
 });
 document.querySelector("#financeClassFilter")?.addEventListener("change", renderFinancePaymentsTable);
 document.querySelector("#financePaymentSearch")?.addEventListener("input", renderFinancePaymentsTable);
+document.querySelector("#libraryClassFilter")?.addEventListener("change", renderLibraryRecords);
+document.querySelector("#librarySearch")?.addEventListener("input", renderLibraryRecords);
 document.querySelector("#studentClassFilter")?.addEventListener("change", renderStudentByClassSection);
 document.querySelector("#attendanceClass")?.addEventListener("change", renderAttendance);
 document.querySelector("#attendanceDate")?.addEventListener("change", renderAttendance);
@@ -713,8 +754,14 @@ document.querySelector("#advanceExpenseButton")?.addEventListener("click", () =>
 [
     "#salaryReportSalary",
     "#salaryReportAdvance",
-    "#salaryReportAdvanceType"
-].forEach((selector) => document.querySelector(selector)?.addEventListener("input", renderSalaryReportSummary));
+    "#salaryReportLoan",
+    "#salaryReportIncomeTax",
+    "#salaryReportAdvanceType",
+    "#salaryReportPaymentType"
+].forEach((selector) => {
+    document.querySelector(selector)?.addEventListener("input", renderSalaryReportSummary);
+    document.querySelector(selector)?.addEventListener("change", renderSalaryReportSummary);
+});
 
 function renderApp() {
     const stats = calculateStats();
@@ -752,6 +799,7 @@ function renderApp() {
     renderExpenseRecipientOptions();
     renderRoleResponsibilityOptions();
     renderFinanceClassFilter();
+    renderLibraryClassOptions();
     renderPaymentStudentOptions();
     fillRequiredPayment();
     renderPayments();
@@ -777,6 +825,7 @@ function renderApp() {
     renderDormitoryAbsentDashboard();
     renderDashboardMonitoring();
     renderFinancePaymentsTable();
+    renderLibraryRecords();
     renderFounders();
     renderServices();
     renderStaffSalaries();
@@ -855,6 +904,111 @@ function setupNavigation() {
     });
 }
 
+function ensureLibrarySection() {
+    const nav = document.querySelector(".main-nav");
+    if (nav && !document.querySelector('.main-nav a[href="#library"]')) {
+        const link = document.createElement("a");
+        link.href = "#library";
+        link.textContent = "Kutubxona";
+        const admissionsLink = nav.querySelector('a[href="#admissions"]');
+        nav.insertBefore(link, admissionsLink || nav.querySelector('a[href="#roles"]') || null);
+    }
+
+    const roleSelect = document.querySelector("#userRole");
+    if (roleSelect && !roleSelect.querySelector('option[value="librarian"]')) {
+        roleSelect.append(new Option("Kutubxonachi", "librarian"));
+    }
+
+    const viewGroup = document.querySelector(".view-group");
+    if (!viewGroup || document.querySelector("#library")) return;
+
+    viewGroup.insertAdjacentHTML("beforeend", `
+        <article class="panel app-view" id="library" data-view="library">
+            <div class="panel-head">
+                <div>
+                    <p class="eyebrow">Kutubxona nazorati</p>
+                    <h2>Sinflar kesimida berilgan kitoblar</h2>
+                </div>
+                <span class="status-pill blue" id="libraryCount">0 ta</span>
+            </div>
+            <form id="libraryForm" class="wide-form">
+                <label>
+                    Kitob nomi
+                    <input id="libraryBookTitle" type="text" placeholder="Masalan: Algebra 7" required>
+                </label>
+                <label>
+                    Muallif
+                    <input id="libraryAuthor" type="text" placeholder="Ixtiyoriy">
+                </label>
+                <label>
+                    Sinf
+                    <select id="libraryClassName" required></select>
+                </label>
+                <label>
+                    O'quvchi F.I.Sh
+                    <input id="libraryStudentName" type="text" placeholder="Masalan: Ali Valiyev" required>
+                </label>
+                <label>
+                    Soni
+                    <input id="libraryQuantity" type="number" min="1" value="1" required>
+                </label>
+                <label>
+                    Berilgan sana
+                    <input id="libraryIssueDate" type="date" required>
+                </label>
+                <label>
+                    Qaytarish sanasi
+                    <input id="libraryReturnDate" type="date">
+                </label>
+                <label>
+                    Holati
+                    <select id="libraryStatus">
+                        <option value="Berildi">Berildi</option>
+                        <option value="Qaytarildi">Qaytarildi</option>
+                        <option value="Yo'qolgan">Yo'qolgan</option>
+                    </select>
+                </label>
+                <label>
+                    Izoh
+                    <input id="libraryNote" type="text" placeholder="Ixtiyoriy">
+                </label>
+                <button type="submit">Kitob chiqimini saqlash</button>
+                <p class="form-message" id="libraryMessage" aria-live="polite"></p>
+            </form>
+            <div class="form-actions">
+                <label>
+                    Sinf bo'yicha
+                    <select id="libraryClassFilter"></select>
+                </label>
+                <label>
+                    Qidirish
+                    <input id="librarySearch" type="search" placeholder="Kitob yoki o'quvchi">
+                </label>
+            </div>
+            <div class="table-wrap compact-table">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Kitob</th>
+                            <th>Muallif</th>
+                            <th>Sinf</th>
+                            <th>O'quvchi</th>
+                            <th>Soni</th>
+                            <th>Berildi</th>
+                            <th>Qaytadi</th>
+                            <th>Holati</th>
+                            <th>Izoh</th>
+                            <th>Amal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="libraryTable"></tbody>
+                </table>
+            </div>
+        </article>
+    `);
+}
+
 function setActiveView(viewName) {
     activeView = viewName || "dashboard";
     document.querySelectorAll(".main-nav a").forEach((link) => {
@@ -890,11 +1044,12 @@ function applyPermissions() {
     toggleForm("#tutorForm", can("tutors"));
     toggleForm("#financeForm", can("finance"));
     toggleForm("#pendingExpenseForm", can("finance"));
+    toggleForm("#libraryForm", can("library"));
     toggleForm("#founderForm", can("founders"));
     toggleForm("#serviceForm", can("services"));
     toggleForm("#staffSalaryForm", can("services"));
 
-    const sectionIds = ["students", "attendance", "dormitory", "admissions", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses", "archive"];
+    const sectionIds = ["students", "attendance", "dormitory", "library", "admissions", "payments", "zauch", "zauchPanel", "teachers", "roles", "salaries", "tutors", "monthlyPayments", "expenses", "founders", "staff", "buses", "archive"];
     sectionIds.forEach((id) => {
         const element = document.querySelector(`#${id}`);
         if (!element) return;
@@ -1043,7 +1198,9 @@ function renderSalaryReports() {
             <td>${formatMoney(totals.total)} so'm</td>
             <td>${formatMoney(item.advance || 0)} so'm</td>
             <td>${formatMoney(item.loan || 0)} so'm</td>
-            <td>${escapeHtml(item.advanceType || "Bank orqali")}</td>
+            <td>${escapeHtml(item.advanceType || "Naqd pul")}</td>
+            <td>${escapeHtml(normalizeSalaryPaymentType(item.salaryPaymentType))}</td>
+            <td>${formatMoney(totals.incomeTax)} so'm</td>
             <td>${formatMoney(totals.remaining)} so'm</td>
             <td></td>
         `;
@@ -1063,9 +1220,12 @@ function openSalaryReportEditModal(id) {
     setValue("#salaryReportEditClass", report.className || "");
     setValue("#salaryReportEditSalary", report.salaryAmount || report.calculatedSalary || 0);
     setValue("#salaryReportEditAdvance", report.advance || 0);
-    setValue("#salaryReportEditAdvanceType", report.advanceType || "Bank orqali");
+    setValue("#salaryReportEditAdvanceType", report.advanceType || "Naqd pul");
+    setValue("#salaryReportEditPaymentType", normalizeSalaryPaymentType(report.salaryPaymentType));
+    setValue("#salaryReportEditIncomeTax", report.incomeTax || 0);
     setValue("#salaryReportEditPaymentTarget", report.paymentTarget || "");
     setValue("#salaryReportEditBankCard", report.bankCard || "");
+    setValue("#salaryReportEditLoan", report.loan || 0);
 
     editSalaryModal.classList.remove("is-hidden");
 }
@@ -1088,6 +1248,8 @@ function saveSalaryReportEdit(event) {
     report.salaryAmount = numberValue("#salaryReportEditSalary");
     report.advance = numberValue("#salaryReportEditAdvance");
     report.advanceType = value("#salaryReportEditAdvanceType");
+    report.salaryPaymentType = value("#salaryReportEditPaymentType");
+    report.incomeTax = numberValue("#salaryReportEditIncomeTax");
     report.paymentTarget = value("#salaryReportEditPaymentTarget");
     report.bankCard = value("#salaryReportEditBankCard");
     report.loan = numberValue("#salaryReportEditLoan");
@@ -1110,6 +1272,8 @@ function openServiceEditModal(id) {
     setValue("#serviceEditSalary", service.salary || 0);
     setValue("#serviceEditAdvance", service.advance || 0);
     setValue("#serviceEditAdvanceType", service.advanceType || "Naqd pul");
+    setValue("#serviceEditPaymentType", normalizeSalaryPaymentType(service.salaryPaymentType));
+    setValue("#serviceEditIncomeTax", service.incomeTax || 0);
 
     editServiceModal.classList.remove("is-hidden");
 }
@@ -1130,7 +1294,9 @@ function saveServiceEdit(event) {
     service.job = value("#serviceEditJob");
     service.salary = numberValue("#serviceEditSalary");
     service.advance = numberValue("#serviceEditAdvance");
+    service.incomeTax = numberValue("#serviceEditIncomeTax");
     service.advanceType = value("#serviceEditAdvanceType");
+    service.salaryPaymentType = value("#serviceEditPaymentType");
 
     saveState();
     renderApp();
@@ -1196,7 +1362,9 @@ function exportSalaryReportsToExcel() {
         "Jami oylik": item.salaryAmount || item.calculatedSalary || 0,
         "Avans": item.advance || 0,
         "Qarz": item.loan || 0,
-        "Avans turi": item.advanceType || "Bank orqali",
+        "Avans turi": item.advanceType || "Naqd pul",
+        "Oylik to'lov turi": normalizeSalaryPaymentType(item.salaryPaymentType),
+        Podoxod: salaryReportTotals(item).incomeTax,
         "Beriladi": salaryReportTotals(item).remaining
     }));
 
@@ -1239,7 +1407,9 @@ function importSalaryReportsFromFile(file) {
                 salaryAmount: Number(row["Jami oylik"] || row["Jami oylik maoshi"] || 0),
                 advance: Number(row["Avans"] || 0),
                 loan: Number(row["Qarz"] || row["Qarz"] || 0),
-                advanceType: String(row["Avans turi"] || row["Avans turi"] || "Bank orqali").trim(),
+                incomeTax: Number(row["Podoxod"] || row["Podoxod 12%"] || 0),
+                advanceType: normalizeAdvanceType(row["Avans turi"] || "Naqd pul"),
+                salaryPaymentType: normalizeSalaryPaymentType(row["Oylik to'lov turi"] || row["To'lov turi"] || row["To'lov usuli"] || ""),
                 paymentTarget: String(row["To'lov manzili"] || "").trim(),
                 bankCard: String(row["Bank kartasi"] || "").trim(),
                 calculatedSalary: 0,
@@ -1340,7 +1510,10 @@ function exportStaffToExcel() {
         "Jami oylik": Number(item.salary || 0),
         Jarima: Number(item.fine || 0),
         Avans: staffSalaryTotals(item).advanceTotal,
-        "Avans turi": item.advanceType || "Bank orqali"
+        "Avans turi": item.advanceType || "Naqd pul",
+        "Oylik to'lov turi": normalizeSalaryPaymentType(item.salaryPaymentType),
+        Podoxod: staffSalaryTotals(item).incomeTax,
+        Beriladi: staffSalaryTotals(item).remaining
     }));
     exportExcelRows(rows, "TexXodimlar", "tex_xodimlar.xlsx", "#staffSalaryMessage");
 }
@@ -1356,7 +1529,9 @@ function importStaffFromFile(file) {
             salary: excelNumber(row, ["Jami oylik", "Oylik"]),
             fine: excelNumber(row, ["Jarima"]),
             advance: excelNumber(row, ["Avans", "Berilgan avans"]),
-            advanceType: normalizeAdvanceType(excelCell(row, ["Avans turi"]) || "Bank orqali"),
+            incomeTax: excelNumber(row, ["Podoxod", "Podoxod 12%"]),
+            advanceType: normalizeAdvanceType(excelCell(row, ["Avans turi"]) || "Naqd pul"),
+            salaryPaymentType: normalizeSalaryPaymentType(excelCell(row, ["Oylik to'lov turi", "To'lov turi", "To'lov usuli"])),
             createdBy: currentUser.fullName
         })).filter((item) => item.name);
         imported.forEach((item) => {
@@ -1377,7 +1552,10 @@ function exportServicesToExcel() {
         Lavozimi: item.job || "haydovchi",
         Oylik: Number(item.salary || 0),
         Avans: Number(item.advance || 0),
-        "Avans turi": item.advanceType || "Naqd pul"
+        "Avans turi": item.advanceType || "Naqd pul",
+        "Oylik to'lov turi": normalizeSalaryPaymentType(item.salaryPaymentType),
+        Podoxod: serviceSalaryTotals(item).incomeTax,
+        Beriladi: serviceSalaryTotals(item).remaining
     }));
     exportExcelRows(rows, "AvtobusXizmati", "avtobus_xizmati.xlsx", "#serviceMessage");
 }
@@ -1392,7 +1570,9 @@ function importServicesFromFile(file) {
             job: excelCell(row, ["Lavozimi", "Ishi"]) || "haydovchi",
             salary: excelNumber(row, ["Oylik", "Beriladigan oylik"]),
             advance: excelNumber(row, ["Avans", "Berilgan avans"]),
+            incomeTax: excelNumber(row, ["Podoxod", "Podoxod 12%"]),
             advanceType: normalizeServiceAdvanceType(excelCell(row, ["Avans turi"]) || "Naqd pul"),
+            salaryPaymentType: normalizeSalaryPaymentType(excelCell(row, ["Oylik to'lov turi", "To'lov turi", "To'lov usuli"])),
             createdBy: currentUser.fullName
         })).filter((item) => item.driverName);
         imported.forEach((item) => {
@@ -1467,12 +1647,15 @@ function renderSalaryReportSummary() {
 
     const totals = salaryReportTotals({
         salaryAmount: numberValue("#salaryReportSalary"),
-        advance: numberValue("#salaryReportAdvance")
+        advance: numberValue("#salaryReportAdvance"),
+        loan: numberValue("#salaryReportLoan"),
+        incomeTax: numberValue("#salaryReportIncomeTax"),
+        salaryPaymentType: value("#salaryReportPaymentType")
     });
 
     summary.innerHTML = `
         <strong>Jami oylik: ${formatMoney(totals.total)} so'm</strong>
-        <span>Avans: ${formatMoney(totals.advance)} | Avans turi: ${escapeHtml(value("#salaryReportAdvanceType") || "Bank orqali")} | Beriladi: ${formatMoney(totals.remaining)} so'm</span>
+        <span>Avans/Qarz: ${formatMoney(totals.advance)} | Avans turi: ${escapeHtml(value("#salaryReportAdvanceType") || "Naqd pul")} | Oylik to'lov turi: ${escapeHtml(normalizeSalaryPaymentType(value("#salaryReportPaymentType")))} | Podoxod: ${formatMoney(totals.incomeTax)} so'm | Beriladi: ${formatMoney(totals.remaining)} so'm</span>
     `;
 }
 
@@ -1521,9 +1704,10 @@ function renderTeacherSalarySheets() {
             <td>${escapeHtml(report.position || report.subject || teacher?.subject || "O'qituvchi")}</td>
             <td>${formatMoney(totals.total)} so'm</td>
             <td>${formatMoney(report.fine || 0)} so'm</td>
-            <td>${formatMoney(split.bank)} so'm</td>
             <td>${formatMoney(split.click)} so'm</td>
             <td>${formatMoney(split.cash)} so'm</td>
+            <td>${escapeHtml(normalizeSalaryPaymentType(report.salaryPaymentType))}</td>
+            <td>${formatMoney(totals.incomeTax)} so'm</td>
             <td>${formatMoney(totals.remaining)} so'm</td>
             <td>${escapeHtml(report.className || teacher?.assignedClass || "-")}</td>
         `;
@@ -1710,7 +1894,7 @@ function renderUsers() {
     if (!table) return;
 
     table.innerHTML = "";
-    state.users.filter((user) => ["admin", "accountant", "zauch", "teacher", "dormitory", "warehouse"].includes(user.role)).forEach((user) => {
+    state.users.filter((user) => ["admin", "accountant", "zauch", "teacher", "librarian", "dormitory", "warehouse"].includes(user.role)).forEach((user) => {
         const row = document.createElement("tr");
         const assignment = user.role === "dormitory"
             ? (user.dormitoryGender || "-")
@@ -1836,6 +2020,65 @@ function renderFinancePaymentsTable() {
             appendTableActions(row, "payments", payment.id);
             table.append(row);
         });
+    updateTableWrapVisibility(table);
+}
+
+function renderLibraryClassOptions() {
+    const recordClassSelect = document.querySelector("#libraryClassName");
+    const filterSelect = document.querySelector("#libraryClassFilter");
+    const classes = visibleClassNames();
+
+    if (recordClassSelect) {
+        const previous = recordClassSelect.value;
+        recordClassSelect.innerHTML = "";
+        classes.forEach((className) => recordClassSelect.append(new Option(className, className)));
+        if (classes.includes(previous)) recordClassSelect.value = previous;
+    }
+
+    if (filterSelect) {
+        const previous = filterSelect.value;
+        filterSelect.innerHTML = "";
+        filterSelect.append(new Option("Barcha sinflar", "all"));
+        classes.forEach((className) => filterSelect.append(new Option(className, className)));
+        if ([...filterSelect.options].some((option) => option.value === previous)) filterSelect.value = previous;
+    }
+}
+
+function renderLibraryRecords() {
+    const table = document.querySelector("#libraryTable");
+    const count = document.querySelector("#libraryCount");
+    if (!table) return;
+
+    const classFilter = value("#libraryClassFilter") || "all";
+    const search = normalizeSearch(value("#librarySearch"));
+    const records = getVisibleLibraryRecords()
+        .filter((item) => classFilter === "all" || item.className === classFilter)
+        .filter((item) => {
+            if (!search) return true;
+            return [item.bookTitle, item.author, item.studentName, item.className]
+                .some((field) => normalizeSearch(field).includes(search));
+        });
+
+    if (count) count.textContent = `${records.length} ta`;
+    table.innerHTML = "";
+    records.slice().reverse().forEach((item, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${escapeHtml(item.bookTitle || "-")}</td>
+            <td>${escapeHtml(item.author || "-")}</td>
+            <td>${escapeHtml(item.className || "-")}</td>
+            <td>${escapeHtml(item.studentName || "-")}</td>
+            <td>${escapeHtml(String(item.quantity || 1))}</td>
+            <td>${escapeHtml(formatDate(item.issueDate || item.createdAt))}</td>
+            <td>${escapeHtml(item.returnDate ? formatDate(item.returnDate) : "-")}</td>
+            <td>${escapeHtml(item.status || "Berildi")}</td>
+            <td>${escapeHtml(item.note || "-")}</td>
+            <td></td>
+        `;
+        appendTableActions(row, "libraryRecords", item.id);
+        table.append(row);
+    });
     updateTableWrapVisibility(table);
 }
 
@@ -2152,9 +2395,8 @@ function renderServices() {
         .reverse()
         .forEach((item, index) => {
         const salary = Number(item.salary || 0);
-        const advance = Number(item.advance || 0);
-        const remaining = Math.max(salary - advance, 0);
-        const split = splitServiceAdvanceByType(advance, item.advanceType);
+        const totals = serviceSalaryTotals(item);
+        const split = splitServiceAdvanceByType(totals.advanceTotal, item.advanceType);
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>${index + 1}</td>
@@ -2163,7 +2405,9 @@ function renderServices() {
             <td>${formatMoney(salary)} so'm</td>
             <td>${formatMoney(split.cash)} so'm</td>
             <td>${formatMoney(split.click)} so'm</td>
-            <td>${formatMoney(remaining)} so'm</td>
+            <td>${escapeHtml(normalizeSalaryPaymentType(item.salaryPaymentType))}</td>
+            <td>${formatMoney(totals.incomeTax)} so'm</td>
+            <td>${formatMoney(totals.remaining)} so'm</td>
             <td></td>
         `;
         appendTableActions(row, "services", item.id);
@@ -2188,9 +2432,10 @@ function renderStaffSalaries() {
             <td>${escapeHtml(item.month || "-")}</td>
             <td>${formatMoney(item.salary)} so'm</td>
             <td>${formatMoney(item.fine || 0)} so'm</td>
-            <td>${formatMoney(split.bank)} so'm</td>
             <td>${formatMoney(split.click)} so'm</td>
             <td>${formatMoney(split.cash)} so'm</td>
+            <td>${escapeHtml(normalizeSalaryPaymentType(item.salaryPaymentType))}</td>
+            <td>${formatMoney(totals.incomeTax)} so'm</td>
             <td>${formatMoney(totals.remaining)} so'm</td>
             <td></td>
         `;
@@ -2413,7 +2658,7 @@ function editRecord(collection, id) {
                 { name: "fullName", label: "F.I.Sh", type: "text", value: item.fullName || "" },
                 { name: "login", label: "Login", type: "text", value: item.login || "" },
                 { name: "password", label: "Parol", type: "text", value: item.password || "" },
-                { name: "role", label: "Rol", type: "select", value: item.role || "teacher", options: ["admin", "accountant", "zauch", "teacher", "dormitory", "warehouse"] },
+                { name: "role", label: "Rol", type: "select", value: item.role || "teacher", options: ["admin", "accountant", "zauch", "teacher", "librarian", "dormitory", "warehouse"] },
                 { name: "assignedClass", label: "Biriktirilgan sinflar (o'qituvchi uchun 2 tagacha)", type: "text", value: item.assignedClass || "" },
                 { name: "dormitoryGender", label: "Yotoqxona guruhi", type: "select", value: item.dormitoryGender || "O'g'il bola", options: ["O'g'il bola", "Qiz bola"] }
             ],
@@ -2520,6 +2765,37 @@ function editRecord(collection, id) {
         openFinanceEditModal(id);
         return;
     }
+    if (collection === "libraryRecords") {
+        openInlineEditModal({
+            title: "Kutubxona yozuvini tahrirlash",
+            fields: [
+                { name: "bookTitle", label: "Kitob nomi", type: "text", value: item.bookTitle || "" },
+                { name: "author", label: "Muallif", type: "text", value: item.author || "" },
+                { name: "className", label: "Sinf", type: "text", value: item.className || "" },
+                { name: "studentName", label: "O'quvchi F.I.Sh", type: "text", value: item.studentName || "" },
+                { name: "quantity", label: "Soni", type: "number", min: 1, value: item.quantity || 1 },
+                { name: "issueDate", label: "Berilgan sana", type: "date", value: item.issueDate || currentDate },
+                { name: "returnDate", label: "Qaytarish sanasi", type: "date", value: item.returnDate || "" },
+                { name: "status", label: "Holati", type: "select", value: item.status || "Berildi", options: ["Berildi", "Qaytarildi", "Yo'qolgan"] },
+                { name: "note", label: "Izoh", type: "text", value: item.note || "" }
+            ],
+            onSave: (data) => {
+                item.bookTitle = data.bookTitle;
+                item.author = data.author;
+                item.className = normalizeClass(data.className);
+                item.studentName = data.studentName;
+                item.quantity = Math.max(Number(data.quantity || 1), 1);
+                item.issueDate = data.issueDate || currentDate;
+                item.returnDate = data.returnDate;
+                item.status = data.status;
+                item.note = data.note;
+                archiveRecord("libraryRecords", "Kutubxona yozuvi tahrirlandi", item);
+                saveState();
+                renderApp();
+            }
+        });
+        return;
+    }
     if (collection === "founders") {
         openInlineEditModal({
             title: "Ta'sischini tahrirlash",
@@ -2554,7 +2830,9 @@ function editRecord(collection, id) {
                 { name: "salary", label: "Oylik", type: "number", min: 0, value: item.salary || 0 },
                 { name: "fine", label: "Jarima", type: "number", min: 0, value: item.fine || 0 },
                 { name: "advance", label: "Berilgan avans", type: "number", min: 0, value: totals.advanceTotal || 0 },
-                { name: "advanceType", label: "Avans turi", type: "select", value: item.advanceType || "Bank orqali", options: ["Bank orqali", "Click", "Naqd pul"] }
+                { name: "advanceType", label: "Avans turi", type: "select", value: item.advanceType || "Naqd pul", options: ["Click", "Naqd pul"] },
+                { name: "salaryPaymentType", label: "Oylik to'lov turi", type: "select", value: normalizeSalaryPaymentType(item.salaryPaymentType), options: ["Naqd pul", "Click", "Bank orqali"] },
+                { name: "incomeTax", label: "Podoxod", type: "number", min: 0, value: item.incomeTax || 0 }
             ],
             onSave: (data) => {
                 item.name = data.name;
@@ -2563,6 +2841,8 @@ function editRecord(collection, id) {
                 item.fine = Number(data.fine || 0);
                 item.advance = Number(data.advance || 0);
                 item.advanceType = normalizeAdvanceType(data.advanceType);
+                item.salaryPaymentType = normalizeSalaryPaymentType(data.salaryPaymentType);
+                item.incomeTax = Number(data.incomeTax || 0);
                 item.advanceBank = 0;
                 item.advanceClick = 0;
                 item.advanceCash = 0;
@@ -2639,6 +2919,11 @@ function getVisibleFinanceExpenses() {
     return expenses;
 }
 
+function getVisibleLibraryRecords() {
+    if (!currentUser) return [];
+    return state.libraryRecords;
+}
+
 function getVisibleSchedules() {
     if (!currentUser) return [];
     if (currentUser.role === "teacher") {
@@ -2674,7 +2959,8 @@ function getVisibleTutors() {
 function visibleClassNames() {
     const classes = [...new Set([
         ...state.students.map((student) => student.className),
-        ...teachers().flatMap((teacher) => assignedClasses(teacher))
+        ...teachers().flatMap((teacher) => assignedClasses(teacher)),
+        ...state.libraryRecords.map((item) => item.className)
     ].filter(Boolean))];
     if (currentUser.role === "teacher") {
         return assignedClasses(currentUser);
@@ -2834,6 +3120,7 @@ function canEditCollection(collection) {
         salaries: "salaries",
         tutors: "tutors",
         finance: "finance",
+        libraryRecords: "library",
         founders: "founders",
         services: "services",
         staffSalaries: "services",
@@ -2990,12 +3277,14 @@ function normalizeState(base = {}) {
             salaryAmount: 0,
             advance: 0,
             loan: Number(report.loan || 0),
+            incomeTax: Number(report.incomeTax || 0),
             paymentTarget: "Bank karta",
             bankCard: "",
             calculatedSalary: 0,
             remainingSalary: 0,
             ...report,
-            advanceType: normalizeAdvanceType(report.advanceType || "Bank orqali")
+            salaryPaymentType: normalizeSalaryPaymentType(report.salaryPaymentType || (String(report.advanceType || "").toLowerCase().includes("bank") ? "Bank orqali" : "")),
+            advanceType: normalizeAdvanceType(report.advanceType || "Naqd pul")
         })) : [],
         payments: Array.isArray(base.payments) ? base.payments.map((payment) => ({
             category: "O'qish to'lovi",
@@ -3012,6 +3301,21 @@ function normalizeState(base = {}) {
         tutors: Array.isArray(base.tutors) ? base.tutors : [],
         founders: Array.isArray(base.founders) ? base.founders : [],
         pendingExpenses: Array.isArray(base.pendingExpenses) ? base.pendingExpenses : [],
+        libraryRecords: Array.isArray(base.libraryRecords) ? base.libraryRecords.map((item) => ({
+            bookTitle: "",
+            author: "",
+            studentName: "",
+            issueDate: String(item.createdAt || "").slice(0, 10),
+            returnDate: "",
+            status: "Berildi",
+            note: "",
+            createdById: "",
+            createdBy: "",
+            createdAt: "",
+            ...item,
+            className: normalizeClass(item.className || ""),
+            quantity: Math.max(Number(item.quantity || 1), 1)
+        })) : [],
         archive,
         finance: Array.isArray(base.finance) ? base.finance.map((item) => ({
             quantity: "",
@@ -3025,6 +3329,8 @@ function normalizeState(base = {}) {
             job: service.job || "haydovchi",
             salary: Number(service.salary || 0),
             advance: Number(service.advance || 0),
+            incomeTax: Number(service.incomeTax || 0),
+            salaryPaymentType: normalizeSalaryPaymentType(service.salaryPaymentType || ""),
             advanceType: normalizeServiceAdvanceType(service.advanceType || "Naqd pul")
         })) : [],
         staffSalaries: Array.isArray(base.staffSalaries) ? base.staffSalaries.map((staff) => ({
@@ -3034,6 +3340,8 @@ function normalizeState(base = {}) {
             advanceClick: Number(staff.advanceClick || 0),
             advanceCash: Number(staff.advanceCash || staff.advance || 0),
             advance: legacyAdvanceAmount(staff),
+            incomeTax: Number(staff.incomeTax || 0),
+            salaryPaymentType: normalizeSalaryPaymentType(staff.salaryPaymentType || (String(staff.advanceType || "").toLowerCase().includes("bank") ? "Bank orqali" : "")),
             advanceType: normalizeAdvanceType(staff.advanceType || legacyAdvanceType(staff))
         })) : [],
         settings: {
@@ -3225,6 +3533,7 @@ function salaryReportTotals(item = {}) {
     const advance = Number(item.advance || 0);
     const loan = Number(item.loan || 0);
     const fine = Number(item.fine || 0);
+    const incomeTax = manualIncomeTax(item);
 
     const advanceTotal = advance + loan;
 
@@ -3234,8 +3543,9 @@ function salaryReportTotals(item = {}) {
         extraPayment: 0,
         advance: advanceTotal,
         loan,
+        incomeTax,
         total: salaryAmount,
-        remaining: Math.max(salaryAmount - fine - advanceTotal, 0)
+        remaining: Math.max(salaryAmount - fine - advanceTotal - incomeTax, 0)
     };
 }
 
@@ -3246,11 +3556,29 @@ function staffSalaryTotals(item = {}) {
         Number(item.advanceBank || 0) +
         Number(item.advanceClick || 0) +
         Number(item.advanceCash || 0);
+    const incomeTax = manualIncomeTax(item);
 
     return {
         advanceTotal,
-        remaining: Math.max(salary - fine - advanceTotal, 0)
+        incomeTax,
+        remaining: Math.max(salary - fine - advanceTotal - incomeTax, 0)
     };
+}
+
+function serviceSalaryTotals(item = {}) {
+    const salary = Number(item.salary || 0);
+    const advanceTotal = Number(item.advance || 0);
+    const incomeTax = manualIncomeTax(item);
+
+    return {
+        advanceTotal,
+        incomeTax,
+        remaining: Math.max(salary - advanceTotal - incomeTax, 0)
+    };
+}
+
+function manualIncomeTax(item = {}) {
+    return Number(item.incomeTax || 0);
 }
 
 function splitAdvanceByType(amount, type) {
@@ -3258,7 +3586,7 @@ function splitAdvanceByType(amount, type) {
     const value = Number(amount || 0);
 
     return {
-        bank: normalizedType === "Bank orqali" ? value : 0,
+        bank: 0,
         click: normalizedType === "Click" ? value : 0,
         cash: normalizedType === "Naqd pul" ? value : 0
     };
@@ -3278,7 +3606,14 @@ function normalizeAdvanceType(type = "") {
     const lowerType = String(type).trim().toLowerCase();
     if (lowerType.includes("click")) return "Click";
     if (lowerType.includes("naqd")) return "Naqd pul";
-    return "Bank orqali";
+    return "Naqd pul";
+}
+
+function normalizeSalaryPaymentType(type = "") {
+    const lowerType = String(type).trim().toLowerCase();
+    if (lowerType.includes("bank")) return "Bank orqali";
+    if (lowerType.includes("click") || lowerType.includes("klik")) return "Click";
+    return "Naqd pul";
 }
 
 function normalizeServiceAdvanceType(type = "") {
@@ -3288,10 +3623,9 @@ function normalizeServiceAdvanceType(type = "") {
 }
 
 function legacyAdvanceType(item = {}) {
-    if (Number(item.advanceBank || 0) > 0) return "Bank orqali";
     if (Number(item.advanceClick || 0) > 0) return "Click";
     if (Number(item.advanceCash || item.advance || 0) > 0) return "Naqd pul";
-    return "Bank orqali";
+    return "Naqd pul";
 }
 
 function legacyAdvanceAmount(item = {}) {
