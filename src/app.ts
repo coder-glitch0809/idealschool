@@ -1,12 +1,36 @@
 import { appTemplate } from "./template";
 
+declare const XLSX: any;
+declare const firebase: any;
+
+declare global {
+    interface Window {
+        XLSX?: any;
+        firebase?: any;
+        IDEAL_SCHOOL_FIREBASE_CONFIG?: any;
+    }
+
+    interface Element {
+        checked: boolean;
+        click: () => void;
+        dataset: DOMStringMap;
+        disabled: boolean;
+        options: HTMLOptionsCollection;
+        placeholder: string;
+        reset: () => void;
+        value: string;
+    }
+}
+
 document.body.insertAdjacentHTML("afterbegin", appTemplate);
 ensureLibrarySection();
 
 const STORAGE_KEY = "idealSchoolPlatformData";
 const THEME_KEY = "idealSchoolTheme";
 const DORMITORY_FEE = 300000;
-const ARCHIVE_POLICY_VERSION = "monthly-archive-v1";
+const ARCHIVE_POLICY_VERSION = "monthly-archive-v2";
+const MONTHLY_ROLLOVER_DAY = 5;
+const INCOME_TAX_RATE = 0.12;
 const SCHOOL_LOCATION = {
     latitude: 40.437865,
     longitude: 70.605491,
@@ -116,6 +140,9 @@ setValue("#paymentMonth", currentMonth);
 setValue("#salaryMonth", currentMonth);
 setValue("#tutorMonth", currentMonth);
 setValue("#staffMonth", currentMonth);
+setValue("#salaryReportPaymentType", "Bank orqali");
+setValue("#staffPaymentType", "Bank orqali");
+setValue("#servicePaymentType", "Bank orqali");
 setValue("#paymentDate", currentDate);
 setValue("#expenseDate", currentDate);
 setValue("#pendingExpenseDate", currentDate);
@@ -385,7 +412,6 @@ document.querySelector("#salaryReportForm").addEventListener("submit", (event) =
         salaryAmount: numberValue("#salaryReportSalary"),
         advance: numberValue("#salaryReportAdvance"),
         loan: numberValue("#salaryReportLoan"),
-        incomeTax: numberValue("#salaryReportIncomeTax"),
         salaryPaymentType: value("#salaryReportPaymentType")
     });
 
@@ -400,9 +426,9 @@ document.querySelector("#salaryReportForm").addEventListener("submit", (event) =
         salaryAmount: numberValue("#salaryReportSalary"),
         advance: numberValue("#salaryReportAdvance"),
         loan: numberValue("#salaryReportLoan"),
-        incomeTax: numberValue("#salaryReportIncomeTax"),
+        incomeTax: salary.incomeTax,
         advanceType: value("#salaryReportAdvanceType"),
-        salaryPaymentType: value("#salaryReportPaymentType"),
+        salaryPaymentType: normalizeSalaryPaymentType(value("#salaryReportPaymentType") || "Bank orqali"),
         paymentTarget: "",
         bankCard: "",
         calculatedSalary: salary.total,
@@ -558,7 +584,9 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
             salaryAmount: 0,
             advance: amount,
             loan: 0,
+            incomeTax: 0,
             advanceType: value("#expenseMethod"),
+            salaryPaymentType: "Bank orqali",
             paymentTarget: "Oldindan avans",
             bankCard: "",
             calculatedSalary: 0,
@@ -688,9 +716,10 @@ document.querySelector("#serviceForm").addEventListener("submit", (event) => {
         job: value("#serviceJob") || "haydovchi",
         salary: numberValue("#serviceSalary"),
         advance: numberValue("#serviceAdvance"),
-        incomeTax: numberValue("#serviceIncomeTax"),
+        incomeTax: automaticIncomeTax({ salary: numberValue("#serviceSalary") }),
         advanceType: value("#serviceAdvanceType"),
-        salaryPaymentType: value("#servicePaymentType"),
+        salaryPaymentType: normalizeSalaryPaymentType(value("#servicePaymentType") || "Bank orqali"),
+        month: currentMonth,
         createdBy: currentUser.fullName
     });
 
@@ -709,9 +738,9 @@ document.querySelector("#staffSalaryForm").addEventListener("submit", (event) =>
         salary: numberValue("#staffSalary"),
         fine: numberValue("#staffFine"),
         advance: numberValue("#staffAdvance"),
-        incomeTax: numberValue("#staffIncomeTax"),
+        incomeTax: automaticIncomeTax({ salary: numberValue("#staffSalary") }),
         advanceType: value("#staffAdvanceType"),
-        salaryPaymentType: value("#staffPaymentType"),
+        salaryPaymentType: normalizeSalaryPaymentType(value("#staffPaymentType") || "Bank orqali"),
         createdBy: currentUser.fullName
     });
 
@@ -991,7 +1020,7 @@ function ensureLibrarySection() {
                         <tr>
                             <th>No</th>
                             <th>Kitob</th>
-                            <th>Muallif</th>
+                            <th>Sinf raxbari</th>
                             <th>Sinf</th>
                             <th>O'quvchi</th>
                             <th>Soni</th>
@@ -1222,7 +1251,7 @@ function openSalaryReportEditModal(id) {
     setValue("#salaryReportEditAdvance", report.advance || 0);
     setValue("#salaryReportEditAdvanceType", report.advanceType || "Naqd pul");
     setValue("#salaryReportEditPaymentType", normalizeSalaryPaymentType(report.salaryPaymentType));
-    setValue("#salaryReportEditIncomeTax", report.incomeTax || 0);
+    setValue("#salaryReportEditIncomeTax", automaticIncomeTax(report));
     setValue("#salaryReportEditPaymentTarget", report.paymentTarget || "");
     setValue("#salaryReportEditBankCard", report.bankCard || "");
     setValue("#salaryReportEditLoan", report.loan || 0);
@@ -1248,8 +1277,8 @@ function saveSalaryReportEdit(event) {
     report.salaryAmount = numberValue("#salaryReportEditSalary");
     report.advance = numberValue("#salaryReportEditAdvance");
     report.advanceType = value("#salaryReportEditAdvanceType");
-    report.salaryPaymentType = value("#salaryReportEditPaymentType");
-    report.incomeTax = numberValue("#salaryReportEditIncomeTax");
+    report.salaryPaymentType = normalizeSalaryPaymentType(value("#salaryReportEditPaymentType") || "Bank orqali");
+    report.incomeTax = automaticIncomeTax(report);
     report.paymentTarget = value("#salaryReportEditPaymentTarget");
     report.bankCard = value("#salaryReportEditBankCard");
     report.loan = numberValue("#salaryReportEditLoan");
@@ -1273,7 +1302,7 @@ function openServiceEditModal(id) {
     setValue("#serviceEditAdvance", service.advance || 0);
     setValue("#serviceEditAdvanceType", service.advanceType || "Naqd pul");
     setValue("#serviceEditPaymentType", normalizeSalaryPaymentType(service.salaryPaymentType));
-    setValue("#serviceEditIncomeTax", service.incomeTax || 0);
+    setValue("#serviceEditIncomeTax", automaticIncomeTax(service));
 
     editServiceModal.classList.remove("is-hidden");
 }
@@ -1294,9 +1323,9 @@ function saveServiceEdit(event) {
     service.job = value("#serviceEditJob");
     service.salary = numberValue("#serviceEditSalary");
     service.advance = numberValue("#serviceEditAdvance");
-    service.incomeTax = numberValue("#serviceEditIncomeTax");
+    service.incomeTax = automaticIncomeTax(service);
     service.advanceType = value("#serviceEditAdvanceType");
-    service.salaryPaymentType = value("#serviceEditPaymentType");
+    service.salaryPaymentType = normalizeSalaryPaymentType(value("#serviceEditPaymentType") || "Bank orqali");
 
     saveState();
     renderApp();
@@ -1364,7 +1393,7 @@ function exportSalaryReportsToExcel() {
         "Qarz": item.loan || 0,
         "Avans turi": item.advanceType || "Naqd pul",
         "Oylik to'lov turi": normalizeSalaryPaymentType(item.salaryPaymentType),
-        Podoxod: salaryReportTotals(item).incomeTax,
+        "Bank orqali": salaryReportTotals(item).incomeTax,
         "Beriladi": salaryReportTotals(item).remaining
     }));
 
@@ -1391,7 +1420,7 @@ function importSalaryReportsFromFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
-            const data = new Uint8Array(e.target.result);
+            const data = new Uint8Array(e.target.result as ArrayBuffer);
             const workbook = XLSX.read(data, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
@@ -1407,9 +1436,9 @@ function importSalaryReportsFromFile(file) {
                 salaryAmount: Number(row["Jami oylik"] || row["Jami oylik maoshi"] || 0),
                 advance: Number(row["Avans"] || 0),
                 loan: Number(row["Qarz"] || row["Qarz"] || 0),
-                incomeTax: Number(row["Podoxod"] || row["Podoxod 12%"] || 0),
+                incomeTax: 0,
                 advanceType: normalizeAdvanceType(row["Avans turi"] || "Naqd pul"),
-                salaryPaymentType: normalizeSalaryPaymentType(row["Oylik to'lov turi"] || row["To'lov turi"] || row["To'lov usuli"] || ""),
+                salaryPaymentType: normalizeSalaryPaymentType(row["Oylik to'lov turi"] || row["To'lov turi"] || row["To'lov usuli"] || "Bank orqali"),
                 paymentTarget: String(row["To'lov manzili"] || "").trim(),
                 bankCard: String(row["Bank kartasi"] || "").trim(),
                 calculatedSalary: 0,
@@ -1419,6 +1448,7 @@ function importSalaryReportsFromFile(file) {
 
             reports.forEach((report) => {
                 const totals = salaryReportTotals(report);
+                report.incomeTax = totals.incomeTax;
                 report.calculatedSalary = totals.total;
                 report.remainingSalary = totals.remaining;
                 state.salaryReports.push(report);
@@ -1529,9 +1559,9 @@ function importStaffFromFile(file) {
             salary: excelNumber(row, ["Jami oylik", "Oylik"]),
             fine: excelNumber(row, ["Jarima"]),
             advance: excelNumber(row, ["Avans", "Berilgan avans"]),
-            incomeTax: excelNumber(row, ["Podoxod", "Podoxod 12%"]),
+            incomeTax: automaticIncomeTax({ salary: excelNumber(row, ["Jami oylik", "Oylik"]) }),
             advanceType: normalizeAdvanceType(excelCell(row, ["Avans turi"]) || "Naqd pul"),
-            salaryPaymentType: normalizeSalaryPaymentType(excelCell(row, ["Oylik to'lov turi", "To'lov turi", "To'lov usuli"])),
+            salaryPaymentType: normalizeSalaryPaymentType(excelCell(row, ["Oylik to'lov turi", "To'lov turi", "To'lov usuli"]) || "Bank orqali"),
             createdBy: currentUser.fullName
         })).filter((item) => item.name);
         imported.forEach((item) => {
@@ -1570,9 +1600,9 @@ function importServicesFromFile(file) {
             job: excelCell(row, ["Lavozimi", "Ishi"]) || "haydovchi",
             salary: excelNumber(row, ["Oylik", "Beriladigan oylik"]),
             advance: excelNumber(row, ["Avans", "Berilgan avans"]),
-            incomeTax: excelNumber(row, ["Podoxod", "Podoxod 12%"]),
+            incomeTax: automaticIncomeTax({ salary: excelNumber(row, ["Oylik", "Beriladigan oylik"]) }),
             advanceType: normalizeServiceAdvanceType(excelCell(row, ["Avans turi"]) || "Naqd pul"),
-            salaryPaymentType: normalizeSalaryPaymentType(excelCell(row, ["Oylik to'lov turi", "To'lov turi", "To'lov usuli"])),
+            salaryPaymentType: normalizeSalaryPaymentType(excelCell(row, ["Oylik to'lov turi", "To'lov turi", "To'lov usuli"]) || "Bank orqali"),
             createdBy: currentUser.fullName
         })).filter((item) => item.driverName);
         imported.forEach((item) => {
@@ -1604,7 +1634,7 @@ function readExcelRows(file, messageSelector, onLoad) {
     const reader = new FileReader();
     reader.onload = (event) => {
         try {
-            const workbook = XLSX.read(new Uint8Array(event.target.result), { type: "array" });
+            const workbook = XLSX.read(new Uint8Array(event.target.result as ArrayBuffer), { type: "array" });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             onLoad(XLSX.utils.sheet_to_json(worksheet, { defval: "" }));
         } catch (error) {
@@ -1649,7 +1679,6 @@ function renderSalaryReportSummary() {
         salaryAmount: numberValue("#salaryReportSalary"),
         advance: numberValue("#salaryReportAdvance"),
         loan: numberValue("#salaryReportLoan"),
-        incomeTax: numberValue("#salaryReportIncomeTax"),
         salaryPaymentType: value("#salaryReportPaymentType")
     });
 
@@ -2318,7 +2347,8 @@ function renderArchive() {
     if (!table || !count) return;
 
     table.innerHTML = "";
-    count.textContent = `${state.archive.length} ta`;
+    const yearlyStats = archiveYearlyStats(new Date().getFullYear());
+    count.textContent = `${state.archive.length} ta | Yillik tushim: ${formatMoney(yearlyStats.income)} so'm | Rasxod: ${formatMoney(yearlyStats.expenses)} so'm | Oyliklar: ${formatMoney(yearlyStats.salaryCost)} so'm`;
     state.archive.slice().reverse().forEach((entry) => {
         const description = entry.data.name || entry.data.title || entry.data.studentName ||
             entry.data.teacherName || entry.data.recipientName || entry.data.fullName || "-";
@@ -2333,6 +2363,37 @@ function renderArchive() {
         table.append(row);
     });
     updateTableWrapVisibility(table);
+}
+
+function archiveYearlyStats(year) {
+    return state.archive.reduce((totals, entry) => {
+        if (String(entry.archivedAt || "").slice(0, 4) !== String(year)) return totals;
+        const data = entry.data || {};
+        if (entry.collection === "payments") {
+            totals.income += Number(data.paidAmount || 0);
+        }
+        if (entry.collection === "finance") {
+            const amount = Number(data.amount || 0);
+            if (data.type === "Rasxod") totals.expenses += amount;
+            else totals.income += amount;
+        }
+        if (entry.collection === "salaryReports") {
+            totals.salaryCost += salaryReportTotals(data).total;
+        }
+        if (entry.collection === "staffSalaries") {
+            totals.salaryCost += Number(data.salary || 0);
+        }
+        if (entry.collection === "services") {
+            totals.salaryCost += Number(data.salary || 0);
+        }
+        if (entry.collection === "salaries") {
+            totals.salaryCost += Number(data.baseSalary || 0) + Number(data.bonus || 0);
+        }
+        if (entry.collection === "tutors") {
+            totals.salaryCost += tutorSalary(data);
+        }
+        return totals;
+    }, { income: 0, expenses: 0, salaryCost: 0 });
 }
 
 function renderFounders() {
@@ -2547,8 +2608,8 @@ function openInlineEditModal({ title, description = "Ma'lumotlarni tizim ichida 
     });
     overlay.querySelector("form").addEventListener("submit", (event) => {
         event.preventDefault();
-        const formData = new FormData(event.target);
-        const data = Object.fromEntries(formData.entries());
+        const formData = new FormData(event.target as HTMLFormElement);
+        const data: any = Object.fromEntries(formData.entries());
         fields.filter((field) => field.type === "checkbox").forEach((field) => {
             data[field.name] = formData.has(field.name);
         });
@@ -2832,7 +2893,7 @@ function editRecord(collection, id) {
                 { name: "advance", label: "Berilgan avans", type: "number", min: 0, value: totals.advanceTotal || 0 },
                 { name: "advanceType", label: "Avans turi", type: "select", value: item.advanceType || "Naqd pul", options: ["Click", "Naqd pul"] },
                 { name: "salaryPaymentType", label: "Oylik to'lov turi", type: "select", value: normalizeSalaryPaymentType(item.salaryPaymentType), options: ["Naqd pul", "Click", "Bank orqali"] },
-                { name: "incomeTax", label: "Podoxod", type: "number", min: 0, value: item.incomeTax || 0 }
+                { name: "incomeTax", label: "Podoxod 12%", type: "number", min: 0, value: automaticIncomeTax(item) }
             ],
             onSave: (data) => {
                 item.name = data.name;
@@ -2842,7 +2903,7 @@ function editRecord(collection, id) {
                 item.advance = Number(data.advance || 0);
                 item.advanceType = normalizeAdvanceType(data.advanceType);
                 item.salaryPaymentType = normalizeSalaryPaymentType(data.salaryPaymentType);
-                item.incomeTax = Number(data.incomeTax || 0);
+                item.incomeTax = automaticIncomeTax(item);
                 item.advanceBank = 0;
                 item.advanceClick = 0;
                 item.advanceCash = 0;
@@ -2873,11 +2934,13 @@ function calculateStats() {
     const manualIncome = sum(state.finance.filter((item) => item.type !== "Rasxod"), "amount");
     const expenses = sum(state.finance.filter((item) => item.type === "Rasxod"), "amount");
     const regularSalary = state.salaries.reduce((total, item) => total + item.baseSalary + item.bonus, 0);
+    const teacherSalaryCost = state.salaryReports.reduce((total, item) => total + salaryReportTotals(item).total, 0);
     const staffSalaryCost = state.staffSalaries.reduce((total, item) => total + Number(item.salary || 0), 0);
+    const serviceSalaryCost = state.services.reduce((total, item) => total + Number(item.salary || 0), 0);
     const tutorCost = state.tutors.reduce((total, item) => total + tutorSalary(item), 0);
     const debt = state.payments.reduce((total, item) => total + Math.max(item.requiredAmount - item.paidAmount, 0), 0);
     const income = incomeFromPayments + manualIncome;
-    const salaryCost = regularSalary + tutorCost + staffSalaryCost;
+    const salaryCost = regularSalary + teacherSalaryCost + tutorCost + staffSalaryCost + serviceSalaryCost;
 
     return {
         income,
@@ -2972,7 +3035,7 @@ function teachers() {
     return state.users.filter((user) => user.role === "teacher");
 }
 
-function assignedClasses(user = {}) {
+function assignedClasses(user: any = {}) {
     return String(user.assignedClass || "")
         .split(",")
         .map((className) => normalizeClass(className))
@@ -3028,7 +3091,7 @@ async function verifyAttendanceLocation() {
     }
 }
 
-function requestCurrentPosition() {
+function requestCurrentPosition(): Promise<GeolocationPosition> {
     return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: true,
@@ -3054,7 +3117,7 @@ function degreesToRadians(value) {
     return Number(value || 0) * Math.PI / 180;
 }
 
-function geolocationErrorMessage(error = {}) {
+function geolocationErrorMessage(error: any = {}) {
     if (error.code === 1) {
         return "Lokatsiyaga ruxsat berilmasa davomat saqlanmaydi.";
     }
@@ -3156,7 +3219,11 @@ function applyTheme(theme) {
 function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     const base = saved ? JSON.parse(saved) : {};
-    return normalizeState(base);
+    const normalized = normalizeState(base);
+    if (needsArchiveCleanup(base)) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
 }
 
 function saveState() {
@@ -3249,11 +3316,9 @@ async function saveStateToFirebase() {
     }
 }
 
-function normalizeState(base = {}) {
+function normalizeState(base: any = {}) {
     const baseSettings = base.settings && typeof base.settings === "object" ? base.settings : {};
-    const archive = baseSettings.archivePolicyVersion === ARCHIVE_POLICY_VERSION
-        ? currentMonthArchive(base.archive)
-        : [];
+    const archive = Array.isArray(base.archive) ? base.archive : [];
     const users = Array.isArray(base.users) ? base.users.map((user) => ({
         subject: "",
         dormitoryGender: "",
@@ -3266,7 +3331,7 @@ function normalizeState(base = {}) {
         if (!savedLogins.has(user.login)) users.unshift(user);
     });
 
-    return {
+    const normalized = {
         users,
         students: Array.isArray(base.students) ? base.students.map((student) => ({ monthlyFee: 0, dormitory: false, dormitoryFee: 0, gender: "", ...student })) : [],
         schedules: Array.isArray(base.schedules) ? base.schedules : [],
@@ -3283,7 +3348,7 @@ function normalizeState(base = {}) {
             calculatedSalary: 0,
             remainingSalary: 0,
             ...report,
-            salaryPaymentType: normalizeSalaryPaymentType(report.salaryPaymentType || (String(report.advanceType || "").toLowerCase().includes("bank") ? "Bank orqali" : "")),
+            salaryPaymentType: normalizeSalaryPaymentType(report.salaryPaymentType || "Bank orqali"),
             advanceType: normalizeAdvanceType(report.advanceType || "Naqd pul")
         })) : [],
         payments: Array.isArray(base.payments) ? base.payments.map((payment) => ({
@@ -3330,7 +3395,7 @@ function normalizeState(base = {}) {
             salary: Number(service.salary || 0),
             advance: Number(service.advance || 0),
             incomeTax: Number(service.incomeTax || 0),
-            salaryPaymentType: normalizeSalaryPaymentType(service.salaryPaymentType || ""),
+            salaryPaymentType: normalizeSalaryPaymentType(service.salaryPaymentType || "Bank orqali"),
             advanceType: normalizeServiceAdvanceType(service.advanceType || "Naqd pul")
         })) : [],
         staffSalaries: Array.isArray(base.staffSalaries) ? base.staffSalaries.map((staff) => ({
@@ -3341,7 +3406,7 @@ function normalizeState(base = {}) {
             advanceCash: Number(staff.advanceCash || staff.advance || 0),
             advance: legacyAdvanceAmount(staff),
             incomeTax: Number(staff.incomeTax || 0),
-            salaryPaymentType: normalizeSalaryPaymentType(staff.salaryPaymentType || (String(staff.advanceType || "").toLowerCase().includes("bank") ? "Bank orqali" : "")),
+            salaryPaymentType: normalizeSalaryPaymentType(staff.salaryPaymentType || "Bank orqali"),
             advanceType: normalizeAdvanceType(staff.advanceType || legacyAdvanceType(staff))
         })) : [],
         settings: {
@@ -3352,22 +3417,90 @@ function normalizeState(base = {}) {
             archivePolicyVersion: ARCHIVE_POLICY_VERSION
         }
     };
+
+    return applyMonthlyRollover(normalized);
 }
 
-function needsArchiveCleanup(base = {}) {
+function needsArchiveCleanup(base: any = {}) {
     const settings = base.settings && typeof base.settings === "object" ? base.settings : {};
     if (settings.archivePolicyVersion !== ARCHIVE_POLICY_VERSION) return true;
-    return currentMonthArchive(base.archive).length !== (Array.isArray(base.archive) ? base.archive.length : 0);
+    return shouldRunMonthlyRollover() && hasPreviousMonthOperationalData(base);
 }
 
-function currentMonthArchive(archive) {
-    const month = new Date().toISOString().slice(0, 7);
-    return Array.isArray(archive)
-        ? archive.filter((entry) => String(entry.archivedAt || "").slice(0, 7) === month)
-        : [];
+function applyMonthlyRollover(nextState: any) {
+    if (!shouldRunMonthlyRollover()) return nextState;
+
+    archivePreviousMonthItems(nextState, "payments", "paymentDate", "O'quvchi to'lovi oylik arxivga o'tdi");
+    archivePreviousMonthItems(nextState, "finance", "expenseDate", "Rasxod oylik arxivga o'tdi");
+    archivePreviousMonthItems(nextState, "salaryReports", "month", "O'qituvchi oyligi oylik arxivga o'tdi");
+    archivePreviousMonthItems(nextState, "staffSalaries", "month", "Tex xodim oyligi oylik arxivga o'tdi");
+    archivePreviousMonthItems(nextState, "services", "month", "Avtobus xizmati oyligi oylik arxivga o'tdi");
+    archivePreviousMonthItems(nextState, "salaries", "month", "Oylik yozuvi oylik arxivga o'tdi");
+    archivePreviousMonthItems(nextState, "tutors", "month", "Repetitor hisoboti oylik arxivga o'tdi");
+
+    return nextState;
 }
 
-function saveAndRender(form, messageSelector, message) {
+function archivePreviousMonthItems(nextState: any, collection: string, dateKey: string, action: string) {
+    if (!Object.prototype.hasOwnProperty.call(nextState, collection)) return;
+    const items = Array.isArray(nextState[collection]) ? nextState[collection] : [];
+    const activeItems = [];
+    items.forEach((item) => {
+        if (isCurrentAccountingMonth(itemMonth(item, dateKey))) {
+            activeItems.push(item);
+            return;
+        }
+        nextState.archive.push(monthlyArchiveEntry(collection, action, item));
+    });
+    nextState[collection] = activeItems;
+}
+
+function monthlyArchiveEntry(collection: string, action: string, item: any) {
+    return {
+        id: createId("archive"),
+        collection,
+        action,
+        data: JSON.parse(JSON.stringify(item || {})),
+        performedBy: "Avtomatik oylik yopish",
+        archivedAt: new Date().toISOString()
+    };
+}
+
+function hasPreviousMonthOperationalData(base: any = {}) {
+    const monthlyCollections = [
+        ["payments", "paymentDate"],
+        ["finance", "expenseDate"],
+        ["salaryReports", "month"],
+        ["staffSalaries", "month"],
+        ["services", "month"],
+        ["salaries", "month"],
+        ["tutors", "month"]
+    ];
+
+    return monthlyCollections.some((entry) => {
+        const collection = entry[0];
+        const dateKey = entry[1];
+        const items = Object.prototype.hasOwnProperty.call(base, collection) && Array.isArray(base[collection])
+            ? base[collection]
+            : [];
+        return items.some((item) => !isCurrentAccountingMonth(itemMonth(item, dateKey)));
+    });
+}
+
+function shouldRunMonthlyRollover() {
+    return new Date().getDate() >= MONTHLY_ROLLOVER_DAY;
+}
+
+function isCurrentAccountingMonth(month: string) {
+    return !month || month === new Date().toISOString().slice(0, 7);
+}
+
+function itemMonth(item: any = {}, dateKey: string) {
+    const rawValue = item[dateKey] || item.month || item.paymentDate || item.expenseDate || item.createdAt;
+    return String(rawValue || "").slice(0, 7);
+}
+
+function saveAndRender(form = null, messageSelector = "", message = "") {
     saveState();
     if (form) form.reset();
     if (messageSelector && message) flash(messageSelector, message);
@@ -3528,12 +3661,12 @@ function renderFeeSettings() {
     setValue("#bigClassFee", state.settings.bigClassFee || "");
 }
 
-function salaryReportTotals(item = {}) {
+function salaryReportTotals(item: any = {}) {
     const salaryAmount = Number(item.salaryAmount || item.calculatedSalary || 0);
     const advance = Number(item.advance || 0);
     const loan = Number(item.loan || 0);
     const fine = Number(item.fine || 0);
-    const incomeTax = manualIncomeTax(item);
+    const incomeTax = automaticIncomeTax(item);
 
     const advanceTotal = advance + loan;
 
@@ -3549,14 +3682,14 @@ function salaryReportTotals(item = {}) {
     };
 }
 
-function staffSalaryTotals(item = {}) {
+function staffSalaryTotals(item: any = {}) {
     const salary = Number(item.salary || 0);
     const fine = Number(item.fine || 0);
     const advanceTotal = Number(item.advance || 0) ||
         Number(item.advanceBank || 0) +
         Number(item.advanceClick || 0) +
         Number(item.advanceCash || 0);
-    const incomeTax = manualIncomeTax(item);
+    const incomeTax = automaticIncomeTax(item);
 
     return {
         advanceTotal,
@@ -3565,10 +3698,10 @@ function staffSalaryTotals(item = {}) {
     };
 }
 
-function serviceSalaryTotals(item = {}) {
+function serviceSalaryTotals(item: any = {}) {
     const salary = Number(item.salary || 0);
     const advanceTotal = Number(item.advance || 0);
-    const incomeTax = manualIncomeTax(item);
+    const incomeTax = automaticIncomeTax(item);
 
     return {
         advanceTotal,
@@ -3577,8 +3710,9 @@ function serviceSalaryTotals(item = {}) {
     };
 }
 
-function manualIncomeTax(item = {}) {
-    return Number(item.incomeTax || 0);
+function automaticIncomeTax(item: any = {}) {
+    const baseAmount = Number(item.salaryAmount || item.calculatedSalary || item.salary || 0);
+    return Math.round(Math.max(baseAmount, 0) * INCOME_TAX_RATE);
 }
 
 function splitAdvanceByType(amount, type) {
@@ -3613,7 +3747,7 @@ function normalizeSalaryPaymentType(type = "") {
     const lowerType = String(type).trim().toLowerCase();
     if (lowerType.includes("bank")) return "Bank orqali";
     if (lowerType.includes("click") || lowerType.includes("klik")) return "Click";
-    return "Naqd pul";
+    return "Bank orqali";
 }
 
 function normalizeServiceAdvanceType(type = "") {
@@ -3622,13 +3756,13 @@ function normalizeServiceAdvanceType(type = "") {
     return "Naqd pul";
 }
 
-function legacyAdvanceType(item = {}) {
+function legacyAdvanceType(item: any = {}) {
     if (Number(item.advanceClick || 0) > 0) return "Click";
     if (Number(item.advanceCash || item.advance || 0) > 0) return "Naqd pul";
     return "Naqd pul";
 }
 
-function legacyAdvanceAmount(item = {}) {
+function legacyAdvanceAmount(item: any = {}) {
     const directAdvance = Number(item.advance || 0);
     if (directAdvance) return directAdvance;
     return Number(item.advanceBank || 0) + Number(item.advanceClick || 0) + Number(item.advanceCash || 0);
@@ -3682,8 +3816,8 @@ function showSecurityNotice(message) {
     }
     notice.textContent = message;
     notice.classList.add("is-visible");
-    clearTimeout(showSecurityNotice.timeout);
-    showSecurityNotice.timeout = setTimeout(() => notice.classList.remove("is-visible"), 1800);
+    clearTimeout((showSecurityNotice as any).timeout);
+    (showSecurityNotice as any).timeout = setTimeout(() => notice.classList.remove("is-visible"), 1800);
 }
 
 function latestSalaryReportForTeacher(teacherId) {
