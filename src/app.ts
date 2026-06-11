@@ -432,6 +432,7 @@ document.querySelector("#salaryReportForm").addEventListener("submit", (event) =
 
     const salary = salaryReportTotals({
         salaryAmount: numberValue("#salaryReportSalary"),
+        fine: numberValue("#salaryReportFine"),
         advance: numberValue("#salaryReportAdvance"),
         loan: numberValue("#salaryReportLoan"),
         salaryPaymentType: value("#salaryReportPaymentType")
@@ -446,9 +447,10 @@ document.querySelector("#salaryReportForm").addEventListener("submit", (event) =
         subject: value("#salaryReportPosition"),
         className: normalizeClass(value("#salaryReportClass")),
         salaryAmount: numberValue("#salaryReportSalary"),
+        fine: numberValue("#salaryReportFine"),
         advance: numberValue("#salaryReportAdvance"),
         loan: numberValue("#salaryReportLoan"),
-        incomeTax: salary.incomeTax,
+        incomeTax: 0,
         advanceType: value("#salaryReportAdvanceType"),
         salaryPaymentType: normalizeSalaryPaymentType(value("#salaryReportPaymentType") || "Bank orqali"),
         paymentTarget: "",
@@ -573,6 +575,7 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
     const recipientId = isSalaryAdvance && document.querySelector("#expenseRecipient") ? value("#expenseRecipient") : "";
     const teacher = recipientId ? state.users.find((user) => user.id === recipientId && user.role === "teacher") : null;
     const founder = recipientId ? state.founders.find((item) => item.id === recipientId) : null;
+    const staff = recipientId ? latestStaffSalaryById(recipientId) : null;
     const expenseTypeResolved = isSalaryAdvance ? "Oldindan avans" : (value("#expenseType") || "Rasxod");
 
     const amount = numberValue("#financeAmount");
@@ -582,8 +585,8 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
         expenseType: expenseTypeResolved,
         recipientId: recipientId,
         salaryAdvance: isSalaryAdvance,
-        recipientName: teacher?.fullName || founder?.name || "",
-        recipientType: teacher ? "teacher" : founder ? "founder" : "",
+        recipientName: teacher?.fullName || founder?.name || staff?.name || "",
+        recipientType: teacher ? "teacher" : founder ? "founder" : staff ? "staff" : "",
         method: value("#expenseMethod"),
         title: value("#financeTitle"),
         quantity: value("#expenseQuantity"),
@@ -607,7 +610,7 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
             advance: amount,
             loan: 0,
             incomeTax: 0,
-            advanceType: value("#expenseMethod"),
+            advanceType: normalizeAdvanceType(value("#expenseMethod")),
             salaryPaymentType: "Bank orqali",
             paymentTarget: "Oldindan avans",
             bankCard: "",
@@ -622,6 +625,22 @@ document.querySelector("#financeForm").addEventListener("submit", (event) => {
             name: founder.name,
             amount,
             method: value("#expenseMethod")
+        });
+    }
+
+    if (isSalaryAdvance && staff) {
+        state.staffSalaries.push({
+            id: createId("staffSalary"),
+            name: staff.name,
+            job: staff.job || "Tex xodim",
+            month: currentMonth,
+            salary: 0,
+            fine: 0,
+            advance: amount,
+            incomeTax: 0,
+            advanceType: normalizeAdvanceType(value("#expenseMethod")),
+            salaryPaymentType: "Bank orqali",
+            createdBy: currentUser.fullName
         });
     }
 
@@ -804,9 +823,9 @@ document.querySelector("#advanceExpenseButton")?.addEventListener("click", () =>
 });
 [
     "#salaryReportSalary",
+    "#salaryReportFine",
     "#salaryReportAdvance",
     "#salaryReportLoan",
-    "#salaryReportIncomeTax",
     "#salaryReportAdvanceType",
     "#salaryReportPaymentType"
 ].forEach((selector) => {
@@ -931,11 +950,31 @@ function renderExpenseRecipientOptions() {
         teacherGroup.append(opt);
     });
     select.append(teacherGroup);
+    const staffGroup = document.createElement("optgroup");
+    staffGroup.label = "Tex xodimlar";
+    latestStaffSalaries().forEach((staff) => {
+        staffGroup.append(new Option(`${staff.name}${staff.job ? ` - ${staff.job}` : ""}`, staff.id));
+    });
+    select.append(staffGroup);
     const founderGroup = document.createElement("optgroup");
     founderGroup.label = "Ta'sischilar";
     state.founders.forEach((founder) => founderGroup.append(new Option(founder.name, founder.id)));
     select.append(founderGroup);
     toggleExpenseSalaryFields();
+}
+
+function latestStaffSalaries() {
+    const staffByName = new Map();
+    state.staffSalaries.slice().reverse().forEach((staff) => {
+        const key = String(staff.name || "").trim().toLowerCase();
+        if (!key || staffByName.has(key)) return;
+        staffByName.set(key, staff);
+    });
+    return [...staffByName.values()];
+}
+
+function latestStaffSalaryById(id) {
+    return latestStaffSalaries().find((staff) => staff.id === id);
 }
 
 function toggleExpenseSalaryFields() {
@@ -1240,6 +1279,7 @@ function renderSalaryReports() {
     table.innerHTML = "";
     getVisibleSalaryReports().slice().reverse().forEach((item, index) => {
         const totals = salaryReportTotals(item);
+        const split = splitAdvanceByType(totals.advance, item.advanceType);
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>${index + 1}</td>
@@ -1247,11 +1287,11 @@ function renderSalaryReports() {
             <td>${escapeHtml(item.position || item.subject || "-")}</td>
             <td>${escapeHtml(item.className || "-")}</td>
             <td>${formatMoney(totals.total)} so'm</td>
-            <td>${formatMoney(item.advance || 0)} so'm</td>
-            <td>${formatMoney(item.loan || 0)} so'm</td>
-            <td>${escapeHtml(item.advanceType || "Naqd pul")}</td>
+            <td>${formatMoney(item.fine || 0)} so'm</td>
+            <td>${formatMoney(split.click)} so'm</td>
+            <td>${formatMoney(split.cash)} so'm</td>
+            <td>${formatMoney(split.bank)} so'm</td>
             <td>${escapeHtml(normalizeSalaryPaymentType(item.salaryPaymentType))}</td>
-            <td>${formatMoney(totals.incomeTax)} so'm</td>
             <td>${formatMoney(totals.remaining)} so'm</td>
             <td></td>
         `;
@@ -1270,10 +1310,10 @@ function openSalaryReportEditModal(id) {
     setValue("#salaryReportEditPosition", report.position || report.subject || "");
     setValue("#salaryReportEditClass", report.className || "");
     setValue("#salaryReportEditSalary", report.salaryAmount || report.calculatedSalary || 0);
+    setValue("#salaryReportEditFine", report.fine || 0);
     setValue("#salaryReportEditAdvance", report.advance || 0);
     setValue("#salaryReportEditAdvanceType", report.advanceType || "Naqd pul");
     setValue("#salaryReportEditPaymentType", normalizeSalaryPaymentType(report.salaryPaymentType));
-    setValue("#salaryReportEditIncomeTax", automaticIncomeTax(report));
     setValue("#salaryReportEditPaymentTarget", report.paymentTarget || "");
     setValue("#salaryReportEditBankCard", report.bankCard || "");
     setValue("#salaryReportEditLoan", report.loan || 0);
@@ -1297,10 +1337,11 @@ function saveSalaryReportEdit(event) {
     report.subject = report.position;
     report.className = normalizeClass(value("#salaryReportEditClass"));
     report.salaryAmount = numberValue("#salaryReportEditSalary");
+    report.fine = numberValue("#salaryReportEditFine");
     report.advance = numberValue("#salaryReportEditAdvance");
-    report.advanceType = value("#salaryReportEditAdvanceType");
+    report.advanceType = normalizeAdvanceType(value("#salaryReportEditAdvanceType"));
     report.salaryPaymentType = normalizeSalaryPaymentType(value("#salaryReportEditPaymentType") || "Bank orqali");
-    report.incomeTax = automaticIncomeTax(report);
+    report.incomeTax = 0;
     report.paymentTarget = value("#salaryReportEditPaymentTarget");
     report.bankCard = value("#salaryReportEditBankCard");
     report.loan = numberValue("#salaryReportEditLoan");
@@ -1411,11 +1452,12 @@ function exportSalaryReportsToExcel() {
         "Lavozimi": item.position || item.subject || "",
         "Sinf": item.className || "",
         "Jami oylik": item.salaryAmount || item.calculatedSalary || 0,
-        "Avans": item.advance || 0,
-        "Qarz": item.loan || 0,
+        "Jarima": item.fine || 0,
+        "Avans Click": splitAdvanceByType(salaryReportTotals(item).advance, item.advanceType).click,
+        "Avans naqd": splitAdvanceByType(salaryReportTotals(item).advance, item.advanceType).cash,
+        "Avans bank": splitAdvanceByType(salaryReportTotals(item).advance, item.advanceType).bank,
         "Avans turi": item.advanceType || "Naqd pul",
         "Oylik to'lov turi": normalizeSalaryPaymentType(item.salaryPaymentType),
-        "Bank orqali": salaryReportTotals(item).incomeTax,
         "Beriladi": salaryReportTotals(item).remaining
     }));
 
@@ -1456,10 +1498,11 @@ function importSalaryReportsFromFile(file) {
                 subject: String(row["Lavozimi"] || "").trim(),
                 className: normalizeClass(String(row["Sinf"] || "")),
                 salaryAmount: Number(row["Jami oylik"] || row["Jami oylik maoshi"] || 0),
-                advance: Number(row["Avans"] || 0),
-                loan: Number(row["Qarz"] || row["Qarz"] || 0),
+                fine: Number(row["Jarima"] || 0),
+                advance: Number(row["Avans"] || row["Berilgan avans"] || row["Avans Click"] || row["Avans naqd"] || row["Avans bank"] || 0),
+                loan: 0,
                 incomeTax: 0,
-                advanceType: normalizeAdvanceType(row["Avans turi"] || "Naqd pul"),
+                advanceType: normalizeAdvanceType(row["Avans turi"] || inferredAdvanceTypeFromSalaryImport(row)),
                 salaryPaymentType: normalizeSalaryPaymentType(row["Oylik to'lov turi"] || row["To'lov turi"] || row["To'lov usuli"] || "Bank orqali"),
                 paymentTarget: String(row["To'lov manzili"] || "").trim(),
                 bankCard: String(row["Bank kartasi"] || "").trim(),
@@ -1470,7 +1513,7 @@ function importSalaryReportsFromFile(file) {
 
             reports.forEach((report) => {
                 const totals = salaryReportTotals(report);
-                report.incomeTax = totals.incomeTax;
+                report.incomeTax = 0;
                 report.calculatedSalary = totals.total;
                 report.remainingSalary = totals.remaining;
                 state.salaryReports.push(report);
@@ -1604,6 +1647,13 @@ function inferredAdvanceTypeFromStaffImport(row) {
     return "Naqd pul";
 }
 
+function inferredAdvanceTypeFromSalaryImport(row) {
+    if (Number(row["Avans bank"] || 0) > 0) return "Bank orqali";
+    if (Number(row["Avans Click"] || 0) > 0) return "Click";
+    if (Number(row["Avans naqd"] || 0) > 0) return "Naqd pul";
+    return "Naqd pul";
+}
+
 function exportServicesToExcel() {
     if (!can("services")) return;
     const rows = state.services.filter((item) => item.type === "Avtobus").map((item, index) => ({
@@ -1707,6 +1757,7 @@ function renderSalaryReportSummary() {
 
     const totals = salaryReportTotals({
         salaryAmount: numberValue("#salaryReportSalary"),
+        fine: numberValue("#salaryReportFine"),
         advance: numberValue("#salaryReportAdvance"),
         loan: numberValue("#salaryReportLoan"),
         salaryPaymentType: value("#salaryReportPaymentType")
@@ -1714,7 +1765,7 @@ function renderSalaryReportSummary() {
 
     summary.innerHTML = `
         <strong>Jami oylik: ${formatMoney(totals.total)} so'm</strong>
-        <span>Avans/Qarz: ${formatMoney(totals.advance)} | Avans turi: ${escapeHtml(value("#salaryReportAdvanceType") || "Naqd pul")} | Oylik to'lov turi: ${escapeHtml(normalizeSalaryPaymentType(value("#salaryReportPaymentType")))} | Podoxod: ${formatMoney(totals.incomeTax)} so'm | Beriladi: ${formatMoney(totals.remaining)} so'm</span>
+        <span>Jarima: ${formatMoney(numberValue("#salaryReportFine"))} so'm | Avans: ${formatMoney(totals.advance)} so'm | Avans turi: ${escapeHtml(value("#salaryReportAdvanceType") || "Naqd pul")} | Oylik to'lov turi: ${escapeHtml(normalizeSalaryPaymentType(value("#salaryReportPaymentType")))} | Beriladi: ${formatMoney(totals.remaining)} so'm</span>
     `;
 }
 
@@ -1765,8 +1816,8 @@ function renderTeacherSalarySheets() {
             <td>${formatMoney(report.fine || 0)} so'm</td>
             <td>${formatMoney(split.click)} so'm</td>
             <td>${formatMoney(split.cash)} so'm</td>
+            <td>${formatMoney(split.bank)} so'm</td>
             <td>${escapeHtml(normalizeSalaryPaymentType(report.salaryPaymentType))}</td>
-            <td>${formatMoney(totals.incomeTax)} so'm</td>
             <td>${formatMoney(totals.remaining)} so'm</td>
             <td>${escapeHtml(report.className || teacher?.assignedClass || "-")}</td>
         `;
@@ -3839,7 +3890,6 @@ function salaryReportTotals(item: any = {}) {
     const advance = Number(item.advance || 0);
     const loan = Number(item.loan || 0);
     const fine = Number(item.fine || 0);
-    const incomeTax = automaticIncomeTax(item);
 
     const advanceTotal = advance + loan;
 
@@ -3849,9 +3899,9 @@ function salaryReportTotals(item: any = {}) {
         extraPayment: 0,
         advance: advanceTotal,
         loan,
-        incomeTax,
+        incomeTax: 0,
         total: salaryAmount,
-        remaining: Math.max(salaryAmount - fine - advanceTotal - incomeTax, 0)
+        remaining: Math.max(salaryAmount - fine - advanceTotal, 0)
     };
 }
 
@@ -3910,7 +3960,7 @@ function splitServiceAdvanceByType(amount, type) {
 
 function normalizeAdvanceType(type = "") {
     const lowerType = String(type).trim().toLowerCase();
-    if (lowerType.includes("bank")) return "Bank orqali";
+    if (lowerType.includes("bank") || lowerType.includes("hisob")) return "Bank orqali";
     if (lowerType.includes("click")) return "Click";
     if (lowerType.includes("naqd")) return "Naqd pul";
     return "Naqd pul";
