@@ -760,7 +760,7 @@ document.querySelector("#staffSalaryForm").addEventListener("submit", (event) =>
         salary: numberValue("#staffSalary"),
         fine: numberValue("#staffFine"),
         advance: numberValue("#staffAdvance"),
-        incomeTax: automaticIncomeTax({ salary: numberValue("#staffSalary") }),
+        incomeTax: 0,
         advanceType: value("#staffAdvanceType"),
         salaryPaymentType: normalizeSalaryPaymentType(value("#staffPaymentType") || "Bank orqali"),
         createdBy: currentUser.fullName
@@ -1561,10 +1561,11 @@ function exportStaffToExcel() {
         Oy: item.month || "",
         "Jami oylik": Number(item.salary || 0),
         Jarima: Number(item.fine || 0),
-        Avans: staffSalaryTotals(item).advanceTotal,
+        "Avans Click": splitAdvanceByType(staffSalaryTotals(item).advanceTotal, item.advanceType).click,
+        "Avans naqd": splitAdvanceByType(staffSalaryTotals(item).advanceTotal, item.advanceType).cash,
+        "Avans bank": splitAdvanceByType(staffSalaryTotals(item).advanceTotal, item.advanceType).bank,
         "Avans turi": item.advanceType || "Naqd pul",
         "Oylik to'lov turi": normalizeSalaryPaymentType(item.salaryPaymentType),
-        Podoxod: staffSalaryTotals(item).incomeTax,
         Beriladi: staffSalaryTotals(item).remaining
     }));
     exportExcelRows(rows, "TexXodimlar", "tex_xodimlar.xlsx", "#staffSalaryMessage");
@@ -1580,9 +1581,9 @@ function importStaffFromFile(file) {
             month: excelCell(row, ["Oy"]) || currentMonth,
             salary: excelNumber(row, ["Jami oylik", "Oylik"]),
             fine: excelNumber(row, ["Jarima"]),
-            advance: excelNumber(row, ["Avans", "Berilgan avans"]),
-            incomeTax: automaticIncomeTax({ salary: excelNumber(row, ["Jami oylik", "Oylik"]) }),
-            advanceType: normalizeAdvanceType(excelCell(row, ["Avans turi"]) || "Naqd pul"),
+            advance: excelNumber(row, ["Avans", "Berilgan avans", "Avans Click", "Avans naqd", "Avans bank"]),
+            incomeTax: 0,
+            advanceType: normalizeAdvanceType(excelCell(row, ["Avans turi"]) || inferredAdvanceTypeFromStaffImport(row)),
             salaryPaymentType: normalizeSalaryPaymentType(excelCell(row, ["Oylik to'lov turi", "To'lov turi", "To'lov usuli"]) || "Bank orqali"),
             createdBy: currentUser.fullName
         })).filter((item) => item.name);
@@ -1594,6 +1595,13 @@ function importStaffFromFile(file) {
         renderApp();
         flash("#staffSalaryMessage", `${imported.length} ta tex xodim import qilindi.`);
     });
+}
+
+function inferredAdvanceTypeFromStaffImport(row) {
+    if (excelNumber(row, ["Avans bank"]) > 0) return "Bank orqali";
+    if (excelNumber(row, ["Avans Click"]) > 0) return "Click";
+    if (excelNumber(row, ["Avans naqd"]) > 0) return "Naqd pul";
+    return "Naqd pul";
 }
 
 function exportServicesToExcel() {
@@ -1877,7 +1885,7 @@ function renderDormitoryAttendance() {
         const submitted = currentUser?.role === "dormitory" && isDormitoryAttendanceSubmitted(config.gender, date, currentUser.id);
         const students = getVisibleStudents()
             .filter((student) => student.gender === config.gender)
-            .filter((student) => canManageDormitoryList || student.dormitory)
+            .filter((student) => student.dormitory)
             .sort((first, second) => String(first.className || "").localeCompare(String(second.className || "")));
         const dormitoryCount = students.filter((student) => student.dormitory).length;
         badge.textContent = submitted ? `${dormitoryCount} ta | Topshirildi` : `${dormitoryCount} ta`;
@@ -2521,8 +2529,8 @@ function renderStaffSalaries() {
             <td>${formatMoney(item.fine || 0)} so'm</td>
             <td>${formatMoney(split.click)} so'm</td>
             <td>${formatMoney(split.cash)} so'm</td>
+            <td>${formatMoney(split.bank)} so'm</td>
             <td>${escapeHtml(normalizeSalaryPaymentType(item.salaryPaymentType))}</td>
-            <td>${formatMoney(totals.incomeTax)} so'm</td>
             <td>${formatMoney(totals.remaining)} so'm</td>
             <td></td>
         `;
@@ -2917,9 +2925,8 @@ function editRecord(collection, id) {
                 { name: "salary", label: "Oylik", type: "number", min: 0, value: item.salary || 0 },
                 { name: "fine", label: "Jarima", type: "number", min: 0, value: item.fine || 0 },
                 { name: "advance", label: "Berilgan avans", type: "number", min: 0, value: totals.advanceTotal || 0 },
-                { name: "advanceType", label: "Avans turi", type: "select", value: item.advanceType || "Naqd pul", options: ["Click", "Naqd pul"] },
-                { name: "salaryPaymentType", label: "Oylik to'lov turi", type: "select", value: normalizeSalaryPaymentType(item.salaryPaymentType), options: ["Naqd pul", "Click", "Bank orqali"] },
-                { name: "incomeTax", label: "Podoxod 12%", type: "number", min: 0, value: automaticIncomeTax(item) }
+                { name: "advanceType", label: "Avans turi", type: "select", value: item.advanceType || "Naqd pul", options: ["Click", "Naqd pul", "Bank orqali"] },
+                { name: "salaryPaymentType", label: "Oylik to'lov turi", type: "select", value: normalizeSalaryPaymentType(item.salaryPaymentType), options: ["Naqd pul", "Click", "Bank orqali"] }
             ],
             onSave: (data) => {
                 item.name = data.name;
@@ -2929,7 +2936,7 @@ function editRecord(collection, id) {
                 item.advance = Number(data.advance || 0);
                 item.advanceType = normalizeAdvanceType(data.advanceType);
                 item.salaryPaymentType = normalizeSalaryPaymentType(data.salaryPaymentType);
-                item.incomeTax = automaticIncomeTax(item);
+                item.incomeTax = 0;
                 item.advanceBank = 0;
                 item.advanceClick = 0;
                 item.advanceCash = 0;
@@ -3855,12 +3862,11 @@ function staffSalaryTotals(item: any = {}) {
         Number(item.advanceBank || 0) +
         Number(item.advanceClick || 0) +
         Number(item.advanceCash || 0);
-    const incomeTax = automaticIncomeTax(item);
 
     return {
         advanceTotal,
-        incomeTax,
-        remaining: Math.max(salary - fine - advanceTotal - incomeTax, 0)
+        incomeTax: 0,
+        remaining: Math.max(salary - fine - advanceTotal, 0)
     };
 }
 
@@ -3886,7 +3892,7 @@ function splitAdvanceByType(amount, type) {
     const value = Number(amount || 0);
 
     return {
-        bank: 0,
+        bank: normalizedType === "Bank orqali" ? value : 0,
         click: normalizedType === "Click" ? value : 0,
         cash: normalizedType === "Naqd pul" ? value : 0
     };
@@ -3904,6 +3910,7 @@ function splitServiceAdvanceByType(amount, type) {
 
 function normalizeAdvanceType(type = "") {
     const lowerType = String(type).trim().toLowerCase();
+    if (lowerType.includes("bank")) return "Bank orqali";
     if (lowerType.includes("click")) return "Click";
     if (lowerType.includes("naqd")) return "Naqd pul";
     return "Naqd pul";
@@ -3923,6 +3930,7 @@ function normalizeServiceAdvanceType(type = "") {
 }
 
 function legacyAdvanceType(item: any = {}) {
+    if (Number(item.advanceBank || 0) > 0) return "Bank orqali";
     if (Number(item.advanceClick || 0) > 0) return "Click";
     if (Number(item.advanceCash || item.advance || 0) > 0) return "Naqd pul";
     return "Naqd pul";
