@@ -46,6 +46,7 @@ const DATA_COLLECTIONS = [
     "pendingExpenses",
     "libraryRecords",
     "archive",
+    "deletedRecords",
     "finance",
     "services",
     "staffSalaries"
@@ -2208,6 +2209,7 @@ function approvePendingExpense(id) {
         createdAt: item.createdAt || new Date().toISOString()
     });
     archiveRecord("pendingExpenses", "Rasxodlarga qo'shildi", item);
+    markRecordDeleted("pendingExpenses", item);
     state.pendingExpenses = state.pendingExpenses.filter((entry) => entry.id !== id);
     saveState();
     renderApp();
@@ -2215,7 +2217,10 @@ function approvePendingExpense(id) {
 
 function removePendingExpense(id) {
     const item = state.pendingExpenses.find((entry) => entry.id === id);
-    if (item) archiveRecord("pendingExpenses", "Olib tashlandi", item);
+    if (item) {
+        archiveRecord("pendingExpenses", "Olib tashlandi", item);
+        markRecordDeleted("pendingExpenses", item);
+    }
     state.pendingExpenses = state.pendingExpenses.filter((entry) => entry.id !== id);
     saveState();
     renderApp();
@@ -2942,7 +2947,10 @@ function removeItem(collection, id) {
         fields: [],
         onSave: () => {
             const removedItem = state[collection].find((item) => item.id === id);
-            if (removedItem) archiveRecord(collection, "O'chirildi", removedItem);
+            if (removedItem) {
+                archiveRecord(collection, "O'chirildi", removedItem);
+                markRecordDeleted(collection, removedItem);
+            }
             state[collection] = state[collection].filter((item) => item.id !== id);
             saveState();
             renderApp();
@@ -3376,8 +3384,11 @@ function mergePlatformStates(remoteState: any = {}, localState: any = {}) {
     DATA_COLLECTIONS.forEach((collection) => {
         merged[collection] = mergeRecords(remote[collection], local[collection]);
     });
+    merged.deletedRecords = mergeRecords(remote.deletedRecords, local.deletedRecords);
+    removeDeletedRecords(merged);
 
     restoreMonthlyArchiveItems(merged);
+    removeDeletedRecords(merged);
     return normalizeState(merged);
 }
 
@@ -3396,6 +3407,55 @@ function recordKey(record: any = {}) {
 
 function asArray(nextValue) {
     return Array.isArray(nextValue) ? nextValue : [];
+}
+
+function deletedRecordKeys(nextState: any = {}) {
+    const keysByCollection = new Map();
+    const add = (collection, key) => {
+        if (!collection || !key) return;
+        if (!keysByCollection.has(collection)) keysByCollection.set(collection, new Set());
+        keysByCollection.get(collection).add(key);
+    };
+
+    asArray(nextState.deletedRecords).forEach((entry) => {
+        add(entry.collection, entry.recordKey || entry.recordId);
+    });
+    asArray(nextState.archive).forEach((entry) => {
+        if (!isDeletionArchiveAction(entry?.action)) return;
+        add(entry.collection, recordKey(entry.data || {}));
+    });
+
+    return keysByCollection;
+}
+
+function removeDeletedRecords(nextState: any = {}) {
+    const keysByCollection = deletedRecordKeys(nextState);
+    keysByCollection.forEach((keys, collection) => {
+        if (!Array.isArray(nextState[collection]) || collection === "archive" || collection === "deletedRecords") return;
+        nextState[collection] = nextState[collection].filter((item) => !keys.has(recordKey(item)));
+    });
+}
+
+function markRecordDeleted(collection, item) {
+    if (!item || typeof item !== "object") return;
+    if (!Array.isArray(state.deletedRecords)) state.deletedRecords = [];
+    const key = recordKey(item);
+    if (state.deletedRecords.some((entry) => entry.collection === collection && (entry.recordKey || entry.recordId) === key)) return;
+    state.deletedRecords.push({
+        id: createId("deleted"),
+        collection,
+        recordId: item.id || "",
+        recordKey: key,
+        deletedBy: currentUser?.fullName || "-",
+        deletedAt: new Date().toISOString()
+    });
+}
+
+function isDeletionArchiveAction(action = "") {
+    const normalizedAction = String(action || "").toLowerCase();
+    return normalizedAction.includes("o'chirildi") ||
+        normalizedAction.includes("olib tashlandi") ||
+        normalizedAction.includes("rasxodlarga qo'shildi");
 }
 
 function normalizeState(base: any = {}) {
@@ -3464,6 +3524,7 @@ function normalizeState(base: any = {}) {
             quantity: Math.max(Number(item.quantity || 1), 1)
         })) : [],
         archive,
+        deletedRecords: Array.isArray(base.deletedRecords) ? base.deletedRecords : [],
         finance: Array.isArray(base.finance) ? base.finance.map((item) => ({
             quantity: "",
             createdById: "",
@@ -3500,7 +3561,9 @@ function normalizeState(base: any = {}) {
         }
     };
 
+    removeDeletedRecords(normalized);
     restoreMonthlyArchiveItems(normalized);
+    removeDeletedRecords(normalized);
     return applyMonthlyRollover(normalized);
 }
 
@@ -3539,12 +3602,14 @@ function archivePreviousMonthItems(nextState: any, collection: string, dateKey: 
 
 function restoreMonthlyArchiveItems(nextState: any) {
     const archiveItems = Array.isArray(nextState.archive) ? nextState.archive : [];
+    const deletedKeys = deletedRecordKeys(nextState);
     archiveItems.forEach((entry) => {
         const collection = entry?.collection;
         const data = entry?.data;
         if (!MONTHLY_ARCHIVE_COLLECTIONS.includes(collection) || !data || typeof data !== "object") return;
         if (!Array.isArray(nextState[collection])) nextState[collection] = [];
         const key = recordKey(data);
+        if (deletedKeys.get(collection)?.has(key)) return;
         if (!nextState[collection].some((item) => recordKey(item) === key)) {
             nextState[collection].push(JSON.parse(JSON.stringify(data)));
         }
