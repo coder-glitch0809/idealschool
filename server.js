@@ -8,9 +8,29 @@ const admin = require("firebase-admin");
 const app = express();
 const port = process.env.PORT || 3000;
 const platformDoc = process.env.FIREBASE_PLATFORM_DOC || "idealSchool";
+const archivePolicyVersion = "monthly-archive-v3-keep-active";
+const dataCollections = [
+    "users",
+    "students",
+    "schedules",
+    "salaryReports",
+    "payments",
+    "attendance",
+    "dormitoryAttendance",
+    "admissions",
+    "salaries",
+    "tutors",
+    "founders",
+    "pendingExpenses",
+    "libraryRecords",
+    "archive",
+    "finance",
+    "services",
+    "staffSalaries"
+];
 
 app.use(cors());
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "10mb" }));
 
 app.use((req, res, next) => {
     const blockedPaths = [
@@ -90,8 +110,15 @@ app.get("/api/platform", async (req, res) => {
 app.put("/api/platform", async (req, res) => {
     if (!db) return res.status(503).json({ error: "Firebase Admin ulanmagan" });
 
-    await db.collection("platform").doc(platformDoc).set(req.body, { merge: false });
-    res.json({ ok: true });
+    const ref = db.collection("platform").doc(platformDoc);
+    let savedData = {};
+    await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(ref);
+        const currentData = snapshot.exists ? snapshot.data() : {};
+        savedData = mergePlatformStates(currentData, req.body || {});
+        transaction.set(ref, savedData, { merge: false });
+    });
+    res.json({ ok: true, data: savedData });
 });
 
 app.get("*", (req, res) => {
@@ -108,4 +135,39 @@ function cleanPrivateKey(privateKey = "") {
         .replace(/^"|"[,]?$/g, "")
         .replace(/,\s*$/g, "")
         .replace(/\\n/g, "\n");
+}
+
+function mergePlatformStates(remoteState = {}, incomingState = {}) {
+    const merged = {
+        ...remoteState,
+        ...incomingState,
+        settings: {
+            ...(remoteState.settings || {}),
+            ...(incomingState.settings || {}),
+            archivePolicyVersion
+        }
+    };
+
+    dataCollections.forEach((collection) => {
+        merged[collection] = mergeRecords(remoteState[collection], incomingState[collection]);
+    });
+
+    return merged;
+}
+
+function mergeRecords(remoteRecords = [], incomingRecords = []) {
+    const recordsByKey = new Map();
+    [...asArray(remoteRecords), ...asArray(incomingRecords)].forEach((record) => {
+        if (!record || typeof record !== "object") return;
+        recordsByKey.set(recordKey(record), record);
+    });
+    return [...recordsByKey.values()];
+}
+
+function recordKey(record = {}) {
+    return record.id || `${record.collection || ""}:${record.archivedAt || ""}:${JSON.stringify(record)}`;
+}
+
+function asArray(nextValue) {
+    return Array.isArray(nextValue) ? nextValue : [];
 }

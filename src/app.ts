@@ -28,9 +28,29 @@ ensureLibrarySection();
 const STORAGE_KEY = "idealSchoolPlatformData";
 const THEME_KEY = "idealSchoolTheme";
 const DORMITORY_FEE = 300000;
-const ARCHIVE_POLICY_VERSION = "monthly-archive-v2";
+const ARCHIVE_POLICY_VERSION = "monthly-archive-v3-keep-active";
 const MONTHLY_ROLLOVER_DAY = 5;
 const INCOME_TAX_RATE = 0.12;
+const DATA_COLLECTIONS = [
+    "users",
+    "students",
+    "schedules",
+    "salaryReports",
+    "payments",
+    "attendance",
+    "dormitoryAttendance",
+    "admissions",
+    "salaries",
+    "tutors",
+    "founders",
+    "pendingExpenses",
+    "libraryRecords",
+    "archive",
+    "finance",
+    "services",
+    "staffSalaries"
+];
+const MONTHLY_ARCHIVE_COLLECTIONS = ["payments", "finance", "salaryReports", "staffSalaries", "services", "salaries", "tutors"];
 const SCHOOL_LOCATION = {
     latitude: 40.437865,
     longitude: 70.605491,
@@ -98,6 +118,7 @@ let activeView = "dashboard";
 let firestoreDb = null;
 let firebaseOnline = false;
 let serverOnline = false;
+let remoteSaveQueue = Promise.resolve();
 
 const currentMonth = new Date().toISOString().slice(0, 7);
 const currentDate = new Date().toISOString().slice(0, 10);
@@ -1791,7 +1812,7 @@ function renderAttendanceClassOptions() {
     select.innerHTML = "";
     classes.forEach((className) => select.append(new Option(className, className)));
     if (classes.includes(previous)) select.value = previous;
-    select.disabled = currentUser.role === "teacher";
+    select.disabled = currentUser.role === "teacher" && classes.length <= 1;
 }
 
 function renderAttendance() {
@@ -3228,8 +3249,16 @@ function loadState() {
 
 function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    saveStateToServer();
-    saveStateToFirebase();
+    remoteSaveQueue = remoteSaveQueue
+        .catch(() => undefined)
+        .then(saveStateRemotely);
+}
+
+async function saveStateRemotely() {
+    await saveStateToServer();
+    if (!serverOnline) {
+        await saveStateToFirebase();
+    }
 }
 
 async function loadStateFromServer() {
@@ -3239,7 +3268,7 @@ async function loadStateFromServer() {
         const data = await response.json();
         if (data && Object.keys(data).length) {
             const needsCleanup = needsArchiveCleanup(data);
-            state = normalizeState(data);
+            state = mergePlatformStates(data, state);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
             if (needsCleanup) await saveStateToServer();
             if (currentUser) renderApp();
@@ -3258,6 +3287,13 @@ async function saveStateToServer() {
             body: JSON.stringify(state)
         });
         serverOnline = response.ok;
+        if (response.ok) {
+            const result = await response.json();
+            if (result?.data && Object.keys(result.data).length) {
+                state = normalizeState(result.data);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            }
+        }
     } catch (error) {
         serverOnline = false;
     }
@@ -3292,7 +3328,7 @@ async function loadStateFromFirebase() {
         if (snapshot.exists) {
             const data = snapshot.data();
             const needsCleanup = needsArchiveCleanup(data);
-            state = normalizeState(data);
+            state = mergePlatformStates(data, state);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
             if (needsCleanup) {
                 await firestoreDb.collection("platform").doc("idealSchool").set(state);
@@ -3310,10 +3346,56 @@ async function saveStateToFirebase() {
     if (!firestoreDb || !firebaseOnline) return;
 
     try {
-        await firestoreDb.collection("platform").doc("idealSchool").set(state);
+        const ref = firestoreDb.collection("platform").doc("idealSchool");
+        await firestoreDb.runTransaction(async (transaction) => {
+            const snapshot = await transaction.get(ref);
+            const latestData = snapshot.exists ? snapshot.data() : {};
+            const mergedState = mergePlatformStates(latestData, state);
+            state = mergedState;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            transaction.set(ref, mergedState);
+        });
     } catch (error) {
         console.warn("Firebase'ga saqlashda xatolik:", error);
     }
+}
+
+function mergePlatformStates(remoteState: any = {}, localState: any = {}) {
+    const remote = normalizeState(remoteState || {});
+    const local = normalizeState(localState || {});
+    const merged = {
+        ...remote,
+        ...local,
+        settings: {
+            ...(remote.settings || {}),
+            ...(local.settings || {}),
+            archivePolicyVersion: ARCHIVE_POLICY_VERSION
+        }
+    };
+
+    DATA_COLLECTIONS.forEach((collection) => {
+        merged[collection] = mergeRecords(remote[collection], local[collection]);
+    });
+
+    restoreMonthlyArchiveItems(merged);
+    return normalizeState(merged);
+}
+
+function mergeRecords(remoteRecords = [], localRecords = []) {
+    const recordsByKey = new Map();
+    [...asArray(remoteRecords), ...asArray(localRecords)].forEach((record) => {
+        if (!record || typeof record !== "object") return;
+        recordsByKey.set(recordKey(record), record);
+    });
+    return [...recordsByKey.values()];
+}
+
+function recordKey(record: any = {}) {
+    return record.id || `${record.collection || ""}:${record.archivedAt || ""}:${JSON.stringify(record)}`;
+}
+
+function asArray(nextValue) {
+    return Array.isArray(nextValue) ? nextValue : [];
 }
 
 function normalizeState(base: any = {}) {
@@ -3418,6 +3500,7 @@ function normalizeState(base: any = {}) {
         }
     };
 
+    restoreMonthlyArchiveItems(normalized);
     return applyMonthlyRollover(normalized);
 }
 
@@ -3444,15 +3527,33 @@ function applyMonthlyRollover(nextState: any) {
 function archivePreviousMonthItems(nextState: any, collection: string, dateKey: string, action: string) {
     if (!Object.prototype.hasOwnProperty.call(nextState, collection)) return;
     const items = Array.isArray(nextState[collection]) ? nextState[collection] : [];
-    const activeItems = [];
     items.forEach((item) => {
         if (isCurrentAccountingMonth(itemMonth(item, dateKey))) {
-            activeItems.push(item);
             return;
         }
-        nextState.archive.push(monthlyArchiveEntry(collection, action, item));
+        if (!hasMonthlyArchiveEntry(nextState.archive, collection, item)) {
+            nextState.archive.push(monthlyArchiveEntry(collection, action, item));
+        }
     });
-    nextState[collection] = activeItems;
+}
+
+function restoreMonthlyArchiveItems(nextState: any) {
+    const archiveItems = Array.isArray(nextState.archive) ? nextState.archive : [];
+    archiveItems.forEach((entry) => {
+        const collection = entry?.collection;
+        const data = entry?.data;
+        if (!MONTHLY_ARCHIVE_COLLECTIONS.includes(collection) || !data || typeof data !== "object") return;
+        if (!Array.isArray(nextState[collection])) nextState[collection] = [];
+        const key = recordKey(data);
+        if (!nextState[collection].some((item) => recordKey(item) === key)) {
+            nextState[collection].push(JSON.parse(JSON.stringify(data)));
+        }
+    });
+}
+
+function hasMonthlyArchiveEntry(archiveItems = [], collection: string, item: any) {
+    const key = recordKey(item);
+    return asArray(archiveItems).some((entry) => entry?.collection === collection && recordKey(entry?.data || {}) === key);
 }
 
 function monthlyArchiveEntry(collection: string, action: string, item: any) {

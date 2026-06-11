@@ -1,6 +1,26 @@
 const admin = require("firebase-admin");
 
 const platformDoc = process.env.FIREBASE_PLATFORM_DOC || "idealSchool";
+const archivePolicyVersion = "monthly-archive-v3-keep-active";
+const dataCollections = [
+    "users",
+    "students",
+    "schedules",
+    "salaryReports",
+    "payments",
+    "attendance",
+    "dormitoryAttendance",
+    "admissions",
+    "salaries",
+    "tutors",
+    "founders",
+    "pendingExpenses",
+    "libraryRecords",
+    "archive",
+    "finance",
+    "services",
+    "staffSalaries"
+];
 
 function getDb() {
     if (!admin.apps.length) {
@@ -51,8 +71,14 @@ module.exports = async function handler(req, res) {
         }
 
         if (req.method === "PUT") {
-            await ref.set(req.body || {}, { merge: false });
-            return res.status(200).json({ ok: true });
+            let savedData = {};
+            await db.runTransaction(async (transaction) => {
+                const snapshot = await transaction.get(ref);
+                const currentData = snapshot.exists ? snapshot.data() : {};
+                savedData = mergePlatformStates(currentData, req.body || {});
+                transaction.set(ref, savedData, { merge: false });
+            });
+            return res.status(200).json({ ok: true, data: savedData });
         }
 
         return res.status(405).json({ error: "Method not allowed" });
@@ -63,3 +89,38 @@ module.exports = async function handler(req, res) {
         });
     }
 };
+
+function mergePlatformStates(remoteState = {}, incomingState = {}) {
+    const merged = {
+        ...remoteState,
+        ...incomingState,
+        settings: {
+            ...(remoteState.settings || {}),
+            ...(incomingState.settings || {}),
+            archivePolicyVersion
+        }
+    };
+
+    dataCollections.forEach((collection) => {
+        merged[collection] = mergeRecords(remoteState[collection], incomingState[collection]);
+    });
+
+    return merged;
+}
+
+function mergeRecords(remoteRecords = [], incomingRecords = []) {
+    const recordsByKey = new Map();
+    [...asArray(remoteRecords), ...asArray(incomingRecords)].forEach((record) => {
+        if (!record || typeof record !== "object") return;
+        recordsByKey.set(recordKey(record), record);
+    });
+    return [...recordsByKey.values()];
+}
+
+function recordKey(record = {}) {
+    return record.id || `${record.collection || ""}:${record.archivedAt || ""}:${JSON.stringify(record)}`;
+}
+
+function asArray(nextValue) {
+    return Array.isArray(nextValue) ? nextValue : [];
+}
