@@ -274,7 +274,7 @@ document.querySelector("#studentForm").addEventListener("submit", (event) => {
         className,
         gender: value("#studentGender"),
         phone: value("#studentPhone"),
-        monthlyFee: numberValue("#studentFee") || defaultMonthlyFee(className),
+        monthlyFee: monthlyFeeFromInput(value("#studentFee"), className),
         dormitory,
         dormitoryFee: dormitory ? DORMITORY_FEE : 0
     });
@@ -1220,6 +1220,7 @@ function renderPaymentStudentOptions() {
     getVisibleStudents()
         .filter((student) => student.className === className)
         .filter((student) => !search || normalizeSearch(student.name).includes(search))
+        .sort(compareStudents)
         .forEach((student) => select.append(new Option(student.name, student.id)));
     if ([...select.options].some((option) => option.value === previous)) select.value = previous;
 }
@@ -1227,9 +1228,7 @@ function renderPaymentStudentOptions() {
 function fillRequiredPayment() {
     const student = state.students.find((item) => item.id === value("#paymentStudent"));
     if (student) {
-        const amount = value("#paymentCategory") === "Yotoqxona"
-            ? (student.dormitoryFee || DORMITORY_FEE)
-            : (student.monthlyFee || defaultMonthlyFee(student.className));
+        const amount = paymentRequiredAmount(student, { category: value("#paymentCategory") });
         setValue("#paymentRequired", amount || 0);
     } else {
         setValue("#paymentRequired", 0);
@@ -1254,7 +1253,7 @@ function renderPayments() {
 function renderStudents() {
     const table = document.querySelector("#studentList");
     table.innerHTML = "";
-    getVisibleStudents().forEach((student) => {
+    getVisibleStudents().slice().sort(compareStudents).forEach((student) => {
         const status = studentPaymentStatus(student);
         const row = document.createElement("tr");
         row.innerHTML = `
@@ -1262,7 +1261,7 @@ function renderStudents() {
             <td>${escapeHtml(student.className || "-")}</td>
             <td>${escapeHtml(student.gender || "-")}</td>
             <td>${escapeHtml(student.phone || "-")}</td>
-            <td>${formatMoney((student.monthlyFee || 0) + (student.dormitory ? (student.dormitoryFee || DORMITORY_FEE) : 0))} so'm</td>
+            <td>${formatMoney(studentRequiredAmount(student))} so'm</td>
             <td>${formatMoney(status.paid)} so'm</td>
             <td>${formatMoney(status.debt)} so'm</td>
             <td>${student.dormitory ? `${formatMoney(student.dormitoryFee || DORMITORY_FEE)} so'm` : "Yo'q"}</td>
@@ -1779,10 +1778,10 @@ function renderTeacherFinance() {
         const classStudents = state.students.filter((student) => teacherClasses.includes(student.className));
         const classPayments = state.payments.filter((payment) => teacherClasses.includes(payment.className));
         if (!classStudents.length && !classPayments.length) return;
-        const required = sum(classPayments, "requiredAmount") || sum(classStudents, "monthlyFee");
+        const required = classStudents.reduce((total, student) => total + studentRequiredAmount(student), 0);
         const paid = sum(classPayments, "paidAmount");
         const debt = Math.max(required - paid, 0);
-        const debtors = classPayments.filter((payment) => payment.requiredAmount > payment.paidAmount).length;
+        const debtors = classStudents.filter((student) => studentPaymentStatus(student).debt > 0).length;
 
         const row = document.createElement("tr");
         row.innerHTML = `
@@ -1830,7 +1829,7 @@ function renderStudentClassFilter() {
     const select = document.querySelector("#studentClassFilter");
     if (!select) return;
 
-    const classes = ["Barchasi", ...new Set(getVisibleStudents().map((student) => student.className).filter(Boolean))];
+    const classes = ["Barchasi", ...uniqueSortedClasses(getVisibleStudents().map((student) => student.className))];
     select.innerHTML = classes.map((className) => `<option value="${escapeHtml(className)}">${escapeHtml(className)}</option>`).join("");
 }
 
@@ -1838,7 +1837,9 @@ function renderStudentByClassSection() {
     const table = document.querySelector("#studentByClassTable");
     if (!table) return;
     const selectedClass = value("#studentClassFilter") || "Barchasi";
-    const students = getVisibleStudents().filter((student) => selectedClass === "Barchasi" || student.className === selectedClass);
+    const students = getVisibleStudents()
+        .filter((student) => selectedClass === "Barchasi" || student.className === selectedClass)
+        .sort(compareStudents);
 
     table.innerHTML = "";
     students.forEach((student, index) => {
@@ -1850,7 +1851,7 @@ function renderStudentByClassSection() {
             <td>${escapeHtml(student.className || "-")}</td>
             <td>${escapeHtml(student.gender || "-")}</td>
             <td>${escapeHtml(student.phone || "-")}</td>
-            <td>${formatMoney((student.monthlyFee || 0) + (student.dormitory ? (student.dormitoryFee || DORMITORY_FEE) : 0))} so'm</td>
+            <td>${formatMoney(studentRequiredAmount(student))} so'm</td>
             <td>${formatMoney(status.paid)} so'm</td>
             <td>${formatMoney(status.debt)} so'm</td>
             <td>${student.dormitory ? `${formatMoney(student.dormitoryFee || DORMITORY_FEE)} so'm` : "Yo'q"}</td>
@@ -1882,7 +1883,9 @@ function renderAttendance() {
 
     const className = value("#attendanceClass");
     const date = value("#attendanceDate") || currentDate;
-    const students = getVisibleStudents().filter((student) => student.className === className);
+    const students = getVisibleStudents()
+        .filter((student) => student.className === className)
+        .sort(compareStudents);
     badge.textContent = className || "Sinf tanlanmagan";
     table.innerHTML = "";
 
@@ -1937,7 +1940,7 @@ function renderDormitoryAttendance() {
         const students = getVisibleStudents()
             .filter((student) => student.gender === config.gender)
             .filter((student) => student.dormitory)
-            .sort((first, second) => String(first.className || "").localeCompare(String(second.className || "")));
+            .sort(compareStudents);
         const dormitoryCount = students.filter((student) => student.dormitory).length;
         badge.textContent = submitted ? `${dormitoryCount} ta | Topshirildi` : `${dormitoryCount} ta`;
         table.innerHTML = "";
@@ -2115,6 +2118,9 @@ function renderFinancePaymentsTable() {
     getVisiblePayments()
         .filter((payment) => classFilter === "all" || payment.className === classFilter)
         .filter((payment) => !search || normalizeSearch(payment.studentName).includes(search))
+        .sort((first, second) => compareClassNames(first.className, second.className) ||
+            String(first.studentName || "").localeCompare(String(second.studentName || ""), "uz", { sensitivity: "base" }) ||
+            String(first.paymentDate || first.createdAt || "").localeCompare(String(second.paymentDate || second.createdAt || "")))
         .forEach((payment, index) => {
             const row = document.createElement("tr");
             row.innerHTML = `
@@ -2167,11 +2173,14 @@ function renderLibraryRecords() {
             if (!search) return true;
             return [item.bookTitle, item.author, item.studentName, item.className]
                 .some((field) => normalizeSearch(field).includes(search));
-        });
+        })
+        .sort((first, second) => compareClassNames(first.className, second.className) ||
+            String(first.studentName || "").localeCompare(String(second.studentName || ""), "uz", { sensitivity: "base" }) ||
+            String(first.bookTitle || "").localeCompare(String(second.bookTitle || ""), "uz", { sensitivity: "base" }));
 
     if (count) count.textContent = `${records.length} ta`;
     table.innerHTML = "";
-    records.slice().reverse().forEach((item, index) => {
+    records.forEach((item, index) => {
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>${index + 1}</td>
@@ -2298,7 +2307,8 @@ function renderAttendanceReminders() {
 
     const missing = teachers().flatMap((teacher) => assignedClasses(teacher)
         .filter((className) => !state.attendance.some((item) => item.date === currentDate && item.className === className))
-        .map((className) => ({ teacher, className })));
+        .map((className) => ({ teacher, className })))
+        .sort((first, second) => compareClassNames(first.className, second.className));
     count.textContent = `${missing.length} ta`;
 
     missing.forEach(({ teacher, className }) => {
@@ -2761,17 +2771,19 @@ function editRecord(collection, id) {
                 { name: "className", label: "Sinf", type: "text", value: item.className || "" },
                 { name: "gender", label: "Jinsi", type: "select", value: item.gender || "O'g'il bola", options: ["O'g'il bola", "Qiz bola"] },
                 { name: "phone", label: "Telefon", type: "tel", value: item.phone || "" },
-                { name: "monthlyFee", label: "Oylik to'lov", type: "number", min: 0, value: item.monthlyFee || 0 },
+                { name: "monthlyFee", label: "Oylik to'lov", type: "number", min: 0, value: item.monthlyFee ?? "" },
                 { name: "dormitory", label: "Yotoqxonada qoladi (+300000 so'm)", type: "checkbox", value: Boolean(item.dormitory) }
             ],
             onSave: (data) => {
+                const previousClassName = item.className;
                 item.name = data.name;
                 item.className = normalizeClass(data.className);
                 item.gender = data.gender;
                 item.phone = data.phone;
-                item.monthlyFee = Number(data.monthlyFee || 0);
+                item.monthlyFee = monthlyFeeFromInput(data.monthlyFee, item.className);
                 item.dormitory = Boolean(data.dormitory);
                 item.dormitoryFee = item.dormitory ? DORMITORY_FEE : 0;
+                syncStudentPayments(item, previousClassName);
                 saveState();
                 renderApp();
             }
@@ -3025,7 +3037,7 @@ function calculateStats() {
     const staffSalaryCost = state.staffSalaries.reduce((total, item) => total + Number(item.salary || 0), 0);
     const serviceSalaryCost = state.services.reduce((total, item) => total + Number(item.salary || 0), 0);
     const tutorCost = state.tutors.reduce((total, item) => total + tutorSalary(item), 0);
-    const debt = state.payments.reduce((total, item) => total + Math.max(item.requiredAmount - item.paidAmount, 0), 0);
+    const debt = state.students.reduce((total, student) => total + studentPaymentStatus(student).debt, 0);
     const income = incomeFromPayments + manualIncome;
     const salaryCost = regularSalary + teacherSalaryCost + tutorCost + staffSalaryCost + serviceSalaryCost;
 
@@ -3107,13 +3119,13 @@ function getVisibleTutors() {
 }
 
 function visibleClassNames() {
-    const classes = [...new Set([
+    const classes = uniqueSortedClasses([
         ...state.students.map((student) => student.className),
         ...teachers().flatMap((teacher) => assignedClasses(teacher)),
         ...state.libraryRecords.map((item) => item.className)
-    ].filter(Boolean))];
+    ]);
     if (currentUser.role === "teacher") {
-        return assignedClasses(currentUser);
+        return assignedClasses(currentUser).sort(compareClassNames);
     }
     return classes;
 }
@@ -3126,7 +3138,40 @@ function assignedClasses(user: any = {}) {
     return String(user.assignedClass || "")
         .split(",")
         .map((className) => normalizeClass(className))
-        .filter(Boolean);
+        .filter(Boolean)
+        .sort(compareClassNames);
+}
+
+function uniqueSortedClasses(classNames = []) {
+    return [...new Set(classNames.map((className) => normalizeClass(String(className || ""))).filter(Boolean))]
+        .sort(compareClassNames);
+}
+
+function compareStudents(first: any = {}, second: any = {}) {
+    const classCompare = compareClassNames(first.className, second.className);
+    if (classCompare) return classCompare;
+    return String(first.name || "").localeCompare(String(second.name || ""), "uz", { sensitivity: "base" });
+}
+
+function compareClassNames(first = "", second = "") {
+    const left = classSortParts(first);
+    const right = classSortParts(second);
+    if (left.hasGrade !== right.hasGrade) return left.hasGrade ? -1 : 1;
+    if (left.grade !== right.grade) return left.grade - right.grade;
+    const letterCompare = left.letter.localeCompare(right.letter, "uz", { sensitivity: "base" });
+    if (letterCompare) return letterCompare;
+    return left.original.localeCompare(right.original, "uz", { sensitivity: "base", numeric: true });
+}
+
+function classSortParts(className = "") {
+    const original = normalizeClass(String(className || ""));
+    const match = original.match(/^(\d+)\s*[- ]?\s*([A-ZА-Я'`]+)?/i);
+    return {
+        original,
+        hasGrade: Boolean(match),
+        grade: match ? Number(match[1] || 0) : Number.MAX_SAFE_INTEGER,
+        letter: match?.[2] || original
+    };
 }
 
 function normalizeSearch(text = "") {
@@ -3533,7 +3578,14 @@ function normalizeState(base: any = {}) {
 
     const normalized = {
         users,
-        students: Array.isArray(base.students) ? base.students.map((student) => ({ monthlyFee: 0, dormitory: false, dormitoryFee: 0, gender: "", ...student })) : [],
+        students: Array.isArray(base.students) ? base.students.map((student) => ({
+            monthlyFee: "",
+            dormitory: false,
+            dormitoryFee: 0,
+            gender: "",
+            ...student,
+            className: normalizeClass(student.className || "")
+        })) : [],
         schedules: Array.isArray(base.schedules) ? base.schedules : [],
         salaryReports: Array.isArray(base.salaryReports) ? base.salaryReports.map((report) => ({
             subject: "",
@@ -3557,7 +3609,8 @@ function normalizeState(base: any = {}) {
             note: "",
             paymentDate: String(payment.createdAt || "").slice(0, 10),
             dormitory: false,
-            ...payment
+            ...payment,
+            className: normalizeClass(payment.className || "")
         })) : [],
         attendance: Array.isArray(base.attendance) ? base.attendance : [],
         dormitoryAttendance: Array.isArray(base.dormitoryAttendance) ? base.dormitoryAttendance : [],
@@ -3843,13 +3896,47 @@ function isBigClass(className) {
     return grade >= 8;
 }
 
+function monthlyFeeFromInput(nextValue, className) {
+    const rawValue = String(nextValue ?? "").trim();
+    return rawValue === "" ? defaultMonthlyFee(className) : Number(rawValue || 0);
+}
+
+function studentTuitionAmount(student: any = {}) {
+    if (student.monthlyFee === "" || student.monthlyFee === null || student.monthlyFee === undefined) {
+        return defaultMonthlyFee(student.className);
+    }
+    return Number(student.monthlyFee || 0);
+}
+
+function studentRequiredAmount(student: any = {}) {
+    return studentTuitionAmount(student) + (student.dormitory ? Number(student.dormitoryFee || DORMITORY_FEE) : 0);
+}
+
+function paymentRequiredAmount(student: any = {}, payment: any = {}) {
+    return payment.category === "Yotoqxona"
+        ? (student.dormitory ? Number(student.dormitoryFee || DORMITORY_FEE) : 0)
+        : studentTuitionAmount(student);
+}
+
+function syncStudentPayments(student: any = {}, previousClassName = "") {
+    state.payments
+        .filter((payment) => payment.studentId === student.id)
+        .filter((payment) => !payment.month || payment.month === currentMonth)
+        .forEach((payment) => {
+            payment.studentName = student.name;
+            payment.className = student.className || previousClassName || payment.className;
+            payment.phone = student.phone;
+            payment.dormitory = Boolean(student.dormitory);
+            payment.requiredAmount = paymentRequiredAmount(student, payment);
+        });
+}
+
 function studentPaymentStatus(student) {
     const payments = state.payments.filter((payment) =>
         payment.studentId === student.id &&
         payment.month === currentMonth
     );
-    const required = (student.monthlyFee || defaultMonthlyFee(student.className)) +
-        (student.dormitory ? (student.dormitoryFee || DORMITORY_FEE) : 0);
+    const required = studentRequiredAmount(student);
     const paid = sum(payments, "paidAmount");
     const debt = Math.max(required - paid, 0);
 
