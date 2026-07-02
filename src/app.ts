@@ -24,6 +24,7 @@ declare global {
 
 document.body.insertAdjacentHTML("afterbegin", appTemplate);
 ensureLibrarySection();
+ensureStudentExportControls();
 
 const STORAGE_KEY = "idealSchoolPlatformData";
 const THEME_KEY = "idealSchoolTheme";
@@ -136,6 +137,7 @@ const sidebarBackdrop = document.querySelector("#sidebarBackdrop");
 const exportSalaryReportsBtn = document.querySelector("#exportSalaryReportsBtn");
 const importSalaryReportsBtn = document.querySelector("#importSalaryReportsBtn");
 const salaryReportFileInput = document.querySelector("#salaryReportFileInput");
+const exportStudentsBtn = document.querySelector("#exportStudentsBtn");
 const exportTeachersBtn = document.querySelector("#exportTeachersBtn");
 const importTeachersBtn = document.querySelector("#importTeachersBtn");
 const teachersFileInput = document.querySelector("#teachersFileInput");
@@ -228,6 +230,7 @@ sidebarPanelToggle.addEventListener("click", () => {
 exportSalaryReportsBtn?.addEventListener("click", exportSalaryReportsToExcel);
 importSalaryReportsBtn?.addEventListener("click", () => salaryReportFileInput?.click());
 salaryReportFileInput?.addEventListener("change", handleSalaryReportFileInput);
+exportStudentsBtn?.addEventListener("click", exportStudentsToExcel);
 exportTeachersBtn?.addEventListener("click", exportTeachersToExcel);
 importTeachersBtn?.addEventListener("click", () => teachersFileInput?.click());
 teachersFileInput?.addEventListener("change", handleTeachersFileInput);
@@ -994,6 +997,18 @@ function setupNavigation() {
     });
 }
 
+function ensureStudentExportControls() {
+    const studentsPanel = document.querySelector("#students");
+    if (!studentsPanel || document.querySelector("#exportStudentsBtn")) return;
+
+    const actions = document.createElement("div");
+    actions.className = "form-actions";
+    actions.innerHTML = '<button type="button" id="exportStudentsBtn">Excelga eksport</button>';
+
+    const tableWrap = studentsPanel.querySelector(".table-wrap");
+    studentsPanel.insertBefore(actions, tableWrap || null);
+}
+
 function ensureLibrarySection() {
     const nav = document.querySelector(".main-nav");
     if (nav && !document.querySelector('.main-nav a[href="#library"]')) {
@@ -1437,6 +1452,27 @@ function handleSalaryReportFileInput(event) {
     if (!file) return;
     importSalaryReportsFromFile(file);
     event.target.value = "";
+}
+
+function exportStudentsToExcel() {
+    if (!can("students")) return;
+    const rows = getVisibleStudents().slice().sort(compareStudents).map((student, index) => {
+        const status = studentPaymentStatus(student);
+        return {
+            No: index + 1,
+            "F.I.Sh": student.name || "",
+            "Sinf": student.className || "",
+            "Jinsi": student.gender || "",
+            "Telefon": student.phone || "",
+            "Oylik to'lov": studentTuitionAmount(student),
+            "Yotoqxona": student.dormitory ? "Ha" : "Yo'q",
+            "Yotoqxona to'lovi": student.dormitory ? Number(student.dormitoryFee || DORMITORY_FEE) : 0,
+            "Jami to'lov": studentRequiredAmount(student),
+            "To'langan": status.paid,
+            "Qolgan qarz": status.debt
+        };
+    });
+    exportExcelRows(rows, "Oquvchilar", "oquvchilar.xlsx", "#studentMessage");
 }
 
 function exportSalaryReportsToExcel() {
